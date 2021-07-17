@@ -8,12 +8,33 @@
     "eject": "expo eject"
   },
   "dependencies": {
+    "@babel/runtime": "^7.14.6",
+    "@expo/vector-icons": "^12.0.5",
+    "@nivo/core": "^0.72.0",
+    "@nivo/line": "^0.72.0",
+    "@react-native-community/datetimepicker": "^3.2.0",
+    "@react-native-community/slider": "^3.0.3",
+    "@react-native-picker/picker": "1.9.11",
+    "@react-navigation/bottom-tabs": "^5.11.11",
+    "@react-navigation/native": "^5.9.4",
+    "@react-navigation/stack": "^5.14.5",
+    "d3": "^7.0.0",
+    "d3-array": "^2.12.1",
     "expo": "~41.0.1",
     "expo-status-bar": "~1.0.4",
-    "react": "16.13.1",
-    "react-dom": "16.13.1",
+    "firebase": "^8.7.0",
+    "pubnub": "^4.32.1",
+    "pubnub-react": "^2.1.0",
+    "react": "^17.0.0",
+    "react-dom": "^17.0.0",
     "react-native": "https://github.com/expo/react-native/archive/sdk-41.0.0.tar.gz",
-    "react-native-web": "~0.13.12"
+    "react-native-charts-wrapper": "^0.5.7",
+    "react-native-elements": "^3.4.2",
+    "react-native-gesture-handler": "~1.10.2",
+    "react-native-screens": "~3.0.0",
+    "react-native-svg": "12.1.0",
+    "react-native-web": "~0.13.12",
+    "victory-native": "^35.3.3"
   },
   "devDependencies": {
     "@babel/core": "^7.9.0"
