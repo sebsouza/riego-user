@@ -3,11 +3,17 @@ import { StatusBar } from "expo-status-bar";
 import { View, Button, ScrollView, ActivityIndicator } from "react-native";
 import firebase from "../database/Firebase";
 import { Input, Text } from "react-native-elements";
-import { useUserIdUpdate } from "../context/UserContext";
+import {
+  useUserIdUpdate,
+  useZonesUpdate,
+  useSystemConfigUpdate,
+} from "../context/UserContext";
 import { styles } from "../styles";
 
 const Login = (props) => {
   const getUserId = useUserIdUpdate();
+  const getZones = useZonesUpdate();
+  const getSystemConfig = useSystemConfigUpdate();
   const [initializing, setInitializing] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loginUser, setLoginUser] = useState({
@@ -20,8 +26,11 @@ const Login = (props) => {
     const subscriber = firebase.auth.onAuthStateChanged(function (user) {
       if (user) {
         // User is signed in.
-        getUserId();
         console.log("User is signed in.");
+        getUserId();
+        getZones();
+        getSystemConfig();
+        console.log("User data loaded.");
         // setInitializing(false);
 
         props.navigation.reset({
@@ -77,14 +86,8 @@ const Login = (props) => {
     );
   else if (saving)
     return (
-      <View
-        style={{
-          flex: 1,
-          padding: 35,
-          marginTop: 150,
-        }}
-      >
-        <ActivityIndicator size="large" color="#03ff13" />
+      <View style={styles.containerLoading}>
+        <ActivityIndicator size="large" color="#1db954" />
         <StatusBar style="light" />
       </View>
     );
@@ -111,7 +114,7 @@ const Login = (props) => {
           <View>
             <Button
               title="Conectar"
-              color="#8bc34a"
+              color="#1db954"
               onPress={() => setLogin()}
             />
           </View>

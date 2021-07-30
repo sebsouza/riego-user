@@ -1,21 +1,35 @@
 import { StyleSheet, StatusBar } from "react-native";
 
 const styles = StyleSheet.create({
-  containerLoading: {
-    padding: 35,
-    marginTop: 150,
-  },
   container: {
     paddingTop: StatusBar.currentHeight + 20,
     marginHorizontal: 16,
     flex: 1,
     padding: 10,
   },
+  containerLoading: {
+    flex: 1,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   containerModal: {
     paddingTop: 200,
     marginHorizontal: 16,
     flex: 1,
     padding: 20,
+  },
+  body: {
+    flex: 1,
+  },
+  footer: {
+    // height: 100,
+    alignItems: "center",
+    backgroundColor: "black",
+    fontSize: 14,
+    color: "white",
+    fontWeight: "bold",
+    fontFamily: "sans-serif",
   },
   dataItem: {
     flexDirection: "row",

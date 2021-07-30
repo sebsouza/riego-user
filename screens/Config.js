@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import firebase from "../database/Firebase";
 import { Divider, ListItem } from "react-native-elements";
-import { useUserId } from "../context/UserContext";
+import { useUserId, useSystemConfig } from "../context/UserContext";
 import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
 
@@ -21,7 +21,8 @@ const Config = (props) => {
   const userId = useUserId();
   const [initializing, setInitializing] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [systemConfig, updateSystemConfig] = useState({});
+  console.log(useSystemConfig());
+  const [systemConfig, updateSystemConfig] = useState(useSystemConfig());
   const timer = useRef(null); // we can save timer in useRef and pass it to child
 
   useEffect(() => {
@@ -69,20 +70,20 @@ const Config = (props) => {
     }
   }, [pubnub]);
 
-  useEffect(() => {
-    var systemConfigRef = firebase.db
-      .collection("users/" + userId + "/config")
-      .doc("system")
-      .onSnapshot((snapshot) => {
-        const systemConfig = snapshot.data();
-        console.log(systemConfig);
-        updateSystemConfig(systemConfig);
-        setInitializing(false);
-      });
-    return () => {
-      // systemConfigRef();
-    };
-  }, []);
+  // useEffect(() => {
+  //   var systemConfigRef = firebase.db
+  //     .collection("users/" + userId + "/config")
+  //     .doc("system")
+  //     .onSnapshot((snapshot) => {
+  //       const systemConfig = snapshot.data();
+  //       console.log(systemConfig);
+  //       updateSystemConfig(systemConfig);
+  //       setInitializing(false);
+  //     });
+  //   return () => {
+  //     // systemConfigRef();
+  //   };
+  // }, []);
 
   const handleSave = (cmd) => {
     const message = {
@@ -101,9 +102,9 @@ const Config = (props) => {
     }, 8000);
   };
 
-  const handleChangeText = (name, value) => {
-    updateSystemConfig({ ...systemConfig, [name]: Number(value) });
-  };
+  // const handleChangeText = (name, value) => {
+  //   updateSystemConfig({ ...systemConfig, [name]: Number(value) });
+  // };
 
   const toggleSwitch = (name, value) => {
     updateSystemConfig({ ...systemConfig, [name]: Boolean(value) });
@@ -111,7 +112,6 @@ const Config = (props) => {
 
   const saveConfig = async () => {
     setSaving(true);
-    console.log(`Saving => ${saving}`);
     try {
       await firebase.db
         .collection("users/" + userId + "/config")
@@ -144,7 +144,6 @@ const Config = (props) => {
   useEffect(() => {
     setTimeout(() => {
       console.log(`Saving timeout`);
-      console.log(`Saving => ${saving}`);
       if (saving) {
         alert(
           "Sin respuesta del controlador. Los cambios serán aplicados cuando el equipo se reconecte a internet."
@@ -155,29 +154,18 @@ const Config = (props) => {
     }, 8000);
   }, [saving]);
 
-  if (initializing)
+  // if (initializing)
+  //   return (
+  //     <View style={styles.containerLoading}>
+  //       <ActivityIndicator size="large" color="#00b0ff" />
+  //       <StatusBar style="light" />
+  //     </View>
+  //   );
+  // else
+  if (saving)
     return (
-      <View
-        style={{
-          flex: 1,
-          padding: 35,
-          marginTop: 150,
-        }}
-      >
-        <ActivityIndicator size="large" color="#00b0ff" />
-        <StatusBar style="light" />
-      </View>
-    );
-  else if (saving)
-    return (
-      <View
-        style={{
-          flex: 1,
-          padding: 35,
-          marginTop: 150,
-        }}
-      >
-        <ActivityIndicator size="large" color="#03ff13" />
+      <View style={styles.containerLoading}>
+        <ActivityIndicator size="large" color="#1db954" />
         <StatusBar style="light" />
       </View>
     );

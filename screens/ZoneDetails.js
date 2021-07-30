@@ -20,9 +20,9 @@ import { styles } from "../styles";
 const ZoneDetails = (props) => {
   const pubnub = usePubNub();
   const userId = useUserId();
-  // const [zoneConfig, updateZoneConfig] = useState([]);
   const [zoneDetails, updateZoneDetails] = useState({});
   const [valveState, updateValveState] = useState({});
+  const [maxWaterTime, setMaxWaterTime] = useState("");
   const [initializing, setInitializing] = useState(true);
   const [saving, setSaving] = useState(false);
   const zoneNumber = props.route.params.zoneNumber; // 0...(n-1)
@@ -36,13 +36,9 @@ const ZoneDetails = (props) => {
           const akg = event.message;
           if (akg.cmd == "akgZoneConfig") {
             setSaving(false);
-            props.navigation.navigate("Zones");
             clearTimeout(timer.current);
-            alert(
-              `Los cambios en la Zona ${
-                zoneNumber + 1
-              } fueron guardados correctamente.`
-            );
+            alert(`Los cambios en la zona fueron aplicados correctamente.`);
+            props.navigation.navigate("Zones");
           }
         };
         pubnub.addListener({ message: handleAkg });
@@ -148,10 +144,7 @@ const ZoneDetails = (props) => {
       .onSnapshot((doc) => {
         const zoneDetails = doc.data();
         console.log(doc.id, " => ", zoneDetails);
-        // });
-        // updateZoneConfig(zoneConfig);
         updateZoneDetails(zoneDetails);
-        // console.log(zoneConfig[zoneNumber]);
         setInitializing(false);
       });
     return () => {
@@ -233,7 +226,7 @@ const ZoneDetails = (props) => {
               onValueChange={(value) => handleChange("waterQ", Number(value))}
               maximumValue={100}
               minimumValue={0}
-              step={1}
+              step={5}
               minimumTrackTintColor="#FFFFFF"
               maximumTrackTintColor="#000000"
               thumbTintColor="#1db954"
@@ -241,7 +234,11 @@ const ZoneDetails = (props) => {
           </View>
           <View style={styles.slider}>
             <Text style={styles.textSmall}>
-              Cantidad de Riego Máx: {zoneDetails.waterQMax} mm
+              Cantidad de Riego Máxima: {zoneDetails.waterQMax} mm (
+              {Math.round(
+                (zoneDetails.waterQMax / zoneDetails.waterCapacity) * 60
+              )}{" "}
+              min)
             </Text>
             <Slider
               style={styles.slider}

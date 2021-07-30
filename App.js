@@ -3,7 +3,7 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
-import { UserProvider } from "./context/UserContext";
+import { UserProvider, useUserId } from "./context/UserContext";
 import PubNub from "pubnub";
 import { PubNubProvider } from "pubnub-react";
 
@@ -16,10 +16,7 @@ import ScheduleRepeat from "./screens/ScheduleRepeat";
 import Config from "./screens/Config";
 import ConfigCalibrate from "./screens/ConfigCalibrate";
 
-const pubnub = new PubNub({
-  subscribeKey: "sub-c-61b73fce-569f-11eb-bf6e-f20b4949e6d2",
-  publishKey: "pub-c-97e71727-b845-4713-9cd2-44dcfa191348",
-});
+import pubnub from "credentials";
 
 const MyTheme = {
   ...DefaultTheme,
@@ -85,7 +82,7 @@ function ZoneNav() {
       <ZoneStack.Screen
         name="ZoneDetails"
         component={ZoneDetails}
-        options={{ title: "Configuración" }}
+        options={{ title: "Configuración Zona" }}
       />
     </ZoneStack.Navigator>
   );
