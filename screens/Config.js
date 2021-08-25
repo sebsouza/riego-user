@@ -15,11 +15,12 @@ import { Divider, ListItem } from "react-native-elements";
 import { useUserId, useSystemConfig } from "../context/UserContext";
 import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
+import theme from "../styles/theme.style";
 
 const Config = (props) => {
   const pubnub = usePubNub();
   const userId = useUserId();
-  const [initializing, setInitializing] = useState(true);
+  // const [initializing, setInitializing] = useState(true);
   const [saving, setSaving] = useState(false);
   console.log(useSystemConfig());
   const [systemConfig, updateSystemConfig] = useState(useSystemConfig());
@@ -35,9 +36,9 @@ const Config = (props) => {
             setSaving(false);
             clearTimeout(timer.current);
             console.log(`System Config Changes Applied.`);
-            alert(
-              `Los cambios en la configuración fueron aplicados correctamente.`
-            );
+            // alert(
+            //   `Los cambios en la configuración fueron aplicados correctamente.`
+            // );
             // props.navigation.reset({
             //   index: 0,
             //   routes: [{ name: "Main" }],
@@ -141,18 +142,18 @@ const Config = (props) => {
       });
   };
 
-  useEffect(() => {
-    setTimeout(() => {
-      console.log(`Saving timeout`);
-      if (saving) {
-        alert(
-          "Sin respuesta del controlador. Los cambios serán aplicados cuando el equipo se reconecte a internet."
-        );
-        setSaving(false);
-        // props.navigation.navigate("Dashboard");
-      }
-    }, 8000);
-  }, [saving]);
+  // useEffect(() => {
+  //   setTimeout(() => {
+  //     console.log(`Saving timeout`);
+  //     if (saving) {
+  //       alert(
+  //         "Sin respuesta del controlador. Los cambios serán aplicados cuando el equipo se reconecte a internet."
+  //       );
+  //       setSaving(false);
+  //       // props.navigation.navigate("Dashboard");
+  //     }
+  //   }, 8000);
+  // }, [saving]);
 
   // if (initializing)
   //   return (
@@ -165,7 +166,7 @@ const Config = (props) => {
   if (saving)
     return (
       <View style={styles.containerLoading}>
-        <ActivityIndicator size="large" color="#1db954" />
+        <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
         <StatusBar style="light" />
       </View>
     );
@@ -181,7 +182,9 @@ const Config = (props) => {
             <View>
               <Switch
                 trackColor={{ false: "#767577", true: "#81b0ff" }}
-                thumbColor={systemConfig.autoMode ? "#1db954" : "#f4f3f4"}
+                thumbColor={
+                  systemConfig.autoMode ? theme.PRIMARY_COLOR : "#f4f3f4"
+                }
                 ios_backgroundColor="#3e3e3e"
                 onValueChange={(value) => toggleSwitch("autoMode", value)}
                 value={systemConfig.autoMode}
@@ -195,7 +198,9 @@ const Config = (props) => {
             <View>
               <Switch
                 trackColor={{ false: "#767577", true: "#81b0ff" }}
-                thumbColor={systemConfig.sensorMode ? "#1db954" : "#f4f3f4"}
+                thumbColor={
+                  systemConfig.sensorMode ? theme.PRIMARY_COLOR : "#f4f3f4"
+                }
                 ios_backgroundColor="#3e3e3e"
                 onValueChange={(value) => toggleSwitch("sensorMode", value)}
                 value={systemConfig.sensorMode}
@@ -208,13 +213,15 @@ const Config = (props) => {
               paddingLeft: -10,
             }}
             onPress={() => {
-              props.navigation.navigate("ConfigCalibrate", {
+              props.navigation.navigate(
+                "ConfigCalibrate" /* , {
                 config: systemConfig,
-              });
+              } */
+              );
             }}
           >
             <ListItem.Content>
-              <ListItem.Title style={{ color: "#b3b3b3" }}>
+              <ListItem.Title style={styles.textSmall}>
                 Calibración
               </ListItem.Title>
             </ListItem.Content>
@@ -224,7 +231,7 @@ const Config = (props) => {
           <View>
             <Button
               title="Guardar cambios"
-              color="#1db954"
+              color={theme.PRIMARY_COLOR}
               onPress={() => saveConfig()}
             />
           </View>
@@ -232,7 +239,7 @@ const Config = (props) => {
           <View>
             <Button
               title="Desconectar"
-              color="tomato"
+              color={theme.TERTIARY_COLOR}
               onPress={() => signOut()}
             />
           </View>

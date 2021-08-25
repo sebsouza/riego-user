@@ -13,19 +13,25 @@ import {
 import firebase from "../database/Firebase";
 import { Input, Divider } from "react-native-elements";
 import Slider from "@react-native-community/slider";
-import { useUserId } from "../context/UserContext";
+import { useUserId, useZones, useZonesUpdate } from "../context/UserContext";
 import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
+import theme from "../styles/theme.style.js";
 
 const ZoneDetails = (props) => {
   const pubnub = usePubNub();
   const userId = useUserId();
-  const [zoneDetails, updateZoneDetails] = useState({});
-  const [valveState, updateValveState] = useState({});
-  const [maxWaterTime, setMaxWaterTime] = useState("");
-  const [initializing, setInitializing] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const getZones = useZonesUpdate();
+  const zones = useZones();
   const zoneNumber = props.route.params.zoneNumber; // 0...(n-1)
+  const [zoneDetails, updateZoneDetails] = useState(
+    zones[zoneNumber].zoneDetails
+  );
+  // console.log(zoneDetails.name);
+  const [valveState, updateValveState] = useState({});
+  // const [maxWaterTime, setMaxWaterTime] = useState("");
+  // const [initializing, setInitializing] = useState(true);
+  const [saving, setSaving] = useState(false);
   const timer = useRef(null); // we can save timer in useRef and pass it to child
 
   useEffect(() => {
@@ -35,10 +41,13 @@ const ZoneDetails = (props) => {
         const handleAkg = (event) => {
           const akg = event.message;
           if (akg.cmd == "akgZoneConfig") {
+            getZones();
             setSaving(false);
             clearTimeout(timer.current);
-            alert(`Los cambios en la zona fueron aplicados correctamente.`);
-            props.navigation.navigate("Zones");
+            // alert(`Los cambios en la zona fueron aplicados correctamente.`);
+            console.log("Zone changes applied");
+            // props.props.route.params.onGoBack();
+            // props.navigation.navigate("Zones");
           }
         };
         pubnub.addListener({ message: handleAkg });
@@ -55,8 +64,8 @@ const ZoneDetails = (props) => {
 
   const handleChange = (name, value) => {
     updateZoneDetails({ ...zoneDetails, [name]: value });
-    console.log(`zoneDetails.waterQ => ${zoneDetails.waterQ}`);
-    console.log(`zoneDetails.waterQMax => ${zoneDetails.waterQMax}`);
+    // console.log(`zoneDetails.waterQ => ${zoneDetails.waterQ}`);
+    // console.log(`zoneDetails.waterQMax => ${zoneDetails.waterQMax}`);
   };
 
   const handleSave = (cmd) => {
@@ -99,16 +108,15 @@ const ZoneDetails = (props) => {
         .then(() => {
           // setSaving(true);
           console.log("Valve State successfully written!");
+          handleSave(7);
         });
     } catch (error) {
       console.error("Error writing document: ", error);
     }
-    handleSave(7);
   };
 
   const saveConfig = async () => {
     setSaving(true);
-    console.log(`Saving => ${saving}`);
     try {
       await firebase.db
         .collection("users/" + userId + "/zones")
@@ -116,11 +124,11 @@ const ZoneDetails = (props) => {
         .set(zoneDetails)
         .then(() => {
           console.log("Zone Config successfully written!");
+          handleSave(3);
         });
     } catch (error) {
       console.error("Error writing document: ", error);
     }
-    handleSave(3);
   };
 
   // useEffect(() => {
@@ -137,20 +145,28 @@ const ZoneDetails = (props) => {
   //   }, 8000);
   // }, [saving]);
 
-  useEffect(() => {
-    var zoneDetailsRef = firebase.db
-      .collection("users/" + userId + "/zones")
-      .doc("zone" + (zoneNumber + 1))
-      .onSnapshot((doc) => {
-        const zoneDetails = doc.data();
-        console.log(doc.id, " => ", zoneDetails);
-        updateZoneDetails(zoneDetails);
-        setInitializing(false);
-      });
-    return () => {
-      zoneDetailsRef();
-    };
-  }, []);
+  // useEffect(() => {
+  //   var zoneDetailsRef = firebase.db
+  //     .collection("users/" + userId + "/zones")
+  //     .doc("zone" + (zoneNumber + 1))
+  //     .onSnapshot((doc) => {
+  //       const zoneDetails = doc.data();
+  //       console.log(doc.id, " => ", zoneDetails);
+  //       updateZoneDetails(zoneDetails);
+  //       setInitializing(false);
+  //     });
+  //   return () => {
+  //     zoneDetailsRef();
+  //   };
+  // }, []);
+
+  // useEffect(() => {
+  //   var zoneDetails = zones["zone" + (zoneNumber + 1)];
+  //   updateZoneDetails(zoneDetails);
+  //   // return () => {
+  //   //   cleanup
+  //   // }
+  // }, [zones]);
 
   useEffect(() => {
     var valveSetRef = firebase.db
@@ -167,29 +183,18 @@ const ZoneDetails = (props) => {
     };
   }, []);
 
-  if (initializing)
+  // if (initializing)
+  //   return (
+  //     <View style={styles.container}>
+  //       <ActivityIndicator size="large" color="#3034ba" />
+  //       <StatusBar style="light" />
+  //     </View>
+  //   );
+  // else
+  if (saving)
     return (
-      <View
-        style={{
-          flex: 1,
-          padding: 35,
-          marginTop: 150,
-        }}
-      >
-        <ActivityIndicator size="large" color="#00b0ff" />
-        <StatusBar style="light" />
-      </View>
-    );
-  else if (saving)
-    return (
-      <View
-        style={{
-          flex: 1,
-          padding: 35,
-          marginTop: 150,
-        }}
-      >
-        <ActivityIndicator size="large" color="#03ff13" />
+      <View style={styles.containerLoading}>
+        <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
         <StatusBar style="light" />
       </View>
     );
@@ -207,10 +212,12 @@ const ZoneDetails = (props) => {
             />
           </View>
           <View style={styles.switch}>
-            <Text style={styles.textSmall}>Riego Auto: </Text>
+            <Text style={styles.textSmall}>Riego Automático: </Text>
             <Switch
               trackColor={{ false: "#535353", true: "#5356E6" }}
-              thumbColor={zoneDetails.waterAuto ? "#1db954" : "#b3b3b3"}
+              thumbColor={
+                zoneDetails.waterAuto ? theme.PRIMARY_COLOR : "#b3b3b3"
+              }
               ios_backgroundColor="#3e3e3e"
               onValueChange={(value) => toggleSwitch("waterAuto", value)}
               value={zoneDetails.waterAuto}
@@ -229,16 +236,12 @@ const ZoneDetails = (props) => {
               step={5}
               minimumTrackTintColor="#FFFFFF"
               maximumTrackTintColor="#000000"
-              thumbTintColor="#1db954"
+              thumbTintColor={theme.PRIMARY_COLOR}
             />
           </View>
           <View style={styles.slider}>
             <Text style={styles.textSmall}>
-              Cantidad de Riego Máxima: {zoneDetails.waterQMax} mm (
-              {Math.round(
-                (zoneDetails.waterQMax / zoneDetails.waterCapacity) * 60
-              )}{" "}
-              min)
+              Tiempo de Riego Máximo: {zoneDetails.waterQMax} min
             </Text>
             <Slider
               style={styles.slider}
@@ -246,12 +249,12 @@ const ZoneDetails = (props) => {
               onValueChange={(value) =>
                 handleChange("waterQMax", Number(value))
               }
-              maximumValue={zoneDetails.waterCapacity}
+              maximumValue={60}
               minimumValue={0}
-              step={1}
+              step={5}
               minimumTrackTintColor="#FFFFFF"
               maximumTrackTintColor="#000000"
-              thumbTintColor="#1db954"
+              thumbTintColor={theme.PRIMARY_COLOR}
             />
           </View>
           <View style={styles.switch}>
@@ -259,7 +262,9 @@ const ZoneDetails = (props) => {
             <Switch
               trackColor={{ false: "#767577", true: "#81b0ff" }}
               thumbColor={
-                valveState["zone" + zoneNumber] ? "#1db954" : "#f4f3f4"
+                valveState["zone" + zoneNumber]
+                  ? theme.PRIMARY_COLOR
+                  : "#f4f3f4"
               }
               ios_backgroundColor="#3e3e3e"
               onValueChange={(value) => toggleSwitchValveState(value)}
@@ -269,7 +274,7 @@ const ZoneDetails = (props) => {
           <Divider style={{ padding: 10, backgroundColor: "#121212" }} />
           <Button
             title="Aplicar"
-            color="#1db954"
+            color={theme.PRIMARY_COLOR}
             onPress={() => saveConfig()}
           />
         </ScrollView>

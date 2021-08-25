@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import firebase from "../database/Firebase";
 import { Input, Divider, Slider } from "react-native-elements";
-import { useUserId } from "../context/UserContext";
+import { useUserId, useSystemConfig } from "../context/UserContext";
 import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
 
@@ -20,7 +20,8 @@ const ConfigCalibrate = (props) => {
   const pubnub = usePubNub();
   const userId = useUserId();
   const [systemConfig, updateSystemConfig] = useState(
-    props.route.params.config
+    // props.route.params.config
+    useSystemConfig()
   );
   const [saving, setSaving] = useState(false);
 
@@ -54,20 +55,20 @@ const ConfigCalibrate = (props) => {
     }
   }, [pubnub]);
 
-  useEffect(() => {
-    var systemConfigRef = firebase.db
-      .collection("users/" + userId + "/config")
-      .doc("system")
-      .onSnapshot((snapshot) => {
-        const systemConfig = snapshot.data();
-        console.log(systemConfig);
-        updateSystemConfig(systemConfig);
-        // setInitializing(false);
-      });
-    return () => {
-      systemConfigRef();
-    };
-  }, []);
+  // useEffect(() => {
+  //   var systemConfigRef = firebase.db
+  //     .collection("users/" + userId + "/config")
+  //     .doc("system")
+  //     .onSnapshot((snapshot) => {
+  //       const systemConfig = snapshot.data();
+  //       console.log(systemConfig);
+  //       updateSystemConfig(systemConfig);
+  //       // setInitializing(false);
+  //     });
+  //   return () => {
+  //     systemConfigRef();
+  //   };
+  // }, []);
 
   const handleSave = (cmd) => {
     const message = {
@@ -106,7 +107,7 @@ const ConfigCalibrate = (props) => {
   else
     return (
       <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
+        <StatusBar style="light" />
         <ScrollView>
           <View style={styles.text}>
             <Text style={styles.textSmall}>Límite mínimo:</Text>

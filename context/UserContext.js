@@ -1,5 +1,6 @@
 import React, { useContext, useState } from "react";
 import firebase from "../database/Firebase";
+import theme from "../styles/theme.style";
 
 const UserContext = React.createContext();
 const UserUpdateContext = React.createContext();
@@ -7,6 +8,10 @@ const ZonesContext = React.createContext();
 const ZonesUpdateContext = React.createContext();
 const SystemConfigContext = React.createContext();
 const SystemConfigUpdateContext = React.createContext();
+const ScheduleContext = React.createContext();
+const ScheduleUpdateContext = React.createContext();
+const MarkedDatesContext = React.createContext();
+const MarkedDatesUpdateContext = React.createContext();
 
 export function useUserId() {
   return useContext(UserContext);
@@ -32,10 +37,29 @@ export function useSystemConfigUpdate() {
   return useContext(SystemConfigUpdateContext);
 }
 
+export function useSchedule() {
+  return useContext(ScheduleContext);
+}
+
+export function useScheduleUpdate() {
+  return useContext(ScheduleUpdateContext);
+}
+
+export function useMarkedDates() {
+  return useContext(MarkedDatesContext);
+}
+
+export function useMarkedDatesUpdate() {
+  return useContext(MarkedDatesUpdateContext);
+}
 export function UserProvider({ children }) {
   const [userId, setUserId] = useState("");
   const [zones, setZones] = useState([]);
   const [systemConfig, setSystemConfig] = useState({});
+  const [schedule, setSchedule] = useState({});
+
+  // const initialDate = formatDate(new Date());
+  const [markedDates, setMarkedDates] = useState({});
 
   function getUserId() {
     const _userId = firebase.auth.currentUser.uid;
@@ -58,8 +82,8 @@ export function UserProvider({ children }) {
         });
         // console.log(zones);
         setZones(zones);
+        console.log("getZones");
       });
-    console.log("getZones");
   }
 
   function getSystemConfig() {
@@ -70,8 +94,58 @@ export function UserProvider({ children }) {
         const systemConfig = snapshot.data();
         console.log(systemConfig);
         setSystemConfig(systemConfig);
+        console.log("getSystemConfig");
       });
-    console.log("getSystemConfig");
+  }
+
+  function getSchedule() {
+    firebase.db
+      .collection("users/" + firebase.auth.currentUser.uid + "/config")
+      .doc("schedule")
+      .onSnapshot((snapshot) => {
+        const schedule = snapshot.data();
+        console.log(schedule);
+        setSchedule(schedule);
+        console.log("getSchedule");
+      });
+  }
+
+  function formatDate(date) {
+    var d = new Date(date),
+      month = "" + (d.getMonth() + 1),
+      day = "" + d.getDate(),
+      year = d.getFullYear();
+
+    if (month.length < 2) month = "0" + month;
+    if (day.length < 2) day = "0" + day;
+
+    return [year, month, day].join("-");
+  }
+
+  function getMarkedDates() {
+    var _markedDates = {};
+    firebase.db
+      .collection("users/" + firebase.auth.currentUser.uid + "/measures")
+      .where("state", "==", 1)
+      .orderBy("timestamp", "desc")
+      .limit(5)
+      .onSnapshot((querySnapshot) => {
+        querySnapshot.forEach((doc) => {
+          const waterAutoState = doc.data();
+          const waterAutoDate = new Date(
+            Math.floor(waterAutoState.timestamp / 60) * 60 * 1000
+          );
+          const waterAutoFormatDate = formatDate(waterAutoDate);
+          console.log(waterAutoFormatDate);
+
+          _markedDates[waterAutoFormatDate] = {
+            marked: true,
+            dotColor: theme.PRIMARY_COLOR,
+          };
+        });
+        setMarkedDates(_markedDates);
+        console.log("getMarkedDates");
+      });
   }
 
   return (
@@ -81,7 +155,15 @@ export function UserProvider({ children }) {
           <ZonesUpdateContext.Provider value={getZones}>
             <SystemConfigContext.Provider value={systemConfig}>
               <SystemConfigUpdateContext.Provider value={getSystemConfig}>
-                {children}
+                <ScheduleContext.Provider value={schedule}>
+                  <ScheduleUpdateContext.Provider value={getSchedule}>
+                    <MarkedDatesContext.Provider value={markedDates}>
+                      <MarkedDatesUpdateContext.Provider value={getMarkedDates}>
+                        {children}
+                      </MarkedDatesUpdateContext.Provider>
+                    </MarkedDatesContext.Provider>
+                  </ScheduleUpdateContext.Provider>
+                </ScheduleContext.Provider>
               </SystemConfigUpdateContext.Provider>
             </SystemConfigContext.Provider>
           </ZonesUpdateContext.Provider>

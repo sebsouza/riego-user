@@ -6,10 +6,10 @@ import {
   SafeAreaView,
   ActivityIndicator,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { Icon } from "react-native-elements";
 import { useUserId, useZones } from "../context/UserContext";
-// import { useZones } from "../context/ZonesContext";
 import { usePubNub } from "pubnub-react";
 import firebase from "../database/Firebase";
 import { styles } from "../styles";
@@ -22,27 +22,44 @@ import {
   VictoryScatter,
   VictoryAxis,
 } from "victory-native";
+import theme from "../styles/theme.style";
 
 const Dashboard = () => {
   const pubnub = usePubNub();
   const userId = useUserId();
   const zones = useZones();
-  const [waterState, updateWaterState] = useState({});
-  const [lastAutoWater, updateLastAutoWater] = useState({});
+
+  const [currentWaterState, setCurrentWaterState] = useState({});
+  const [lastAutoWater, setLastAutoWater] = useState({});
+  const [prevAutoWater, setPrevAutoWater] = useState({});
   const [measures, updateMeasures] = useState([]);
   const [soilMoistInitMeasures, updateSoilMoistInitMeasures] = useState([]);
-  const [currentMeasure, updateCurrentMeasure] = useState({});
-  const [display, updateDisplay] = useState({});
-  const [loading, setLoading] = useState([true]);
-  // const [updating, setUpdating] = useState(true);
+  const [currentMeasure, setCurrentMeasure] = useState({});
+  const [prevMeasure, setPrevMeasure] = useState({});
+  const [soilMoistureDelta, setSoilMoistureDelta] = useState(0);
+  const [waterDurationDelta, setWaterDurationDelta] = useState(0);
+  // const [display, updateDisplay] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(true);
   // const [online, setOnline] = useState(false);
-  const [clientStatus, setClientStatus] = useState("updating");
-  const [showAlert, setShowAlert] = useState(false);
+  // const [clientStatus, setClientStatus] = useState("updating");
+  const [connected, setConnected] = useState(false);
+  const [notAnswering, setNotAnswering] = useState(false);
   let date = new Date();
   const [dateTime, setDateTime] = useState(date.getTime());
   const timer = useRef(null); // we can save timer in useRef and pass it to child
+  const timerConnected = useRef(null);
+  const timerNotAnswering = useRef(null);
 
-  useEffect(() => {
+  const wait = (timeout) => {
+    return new Promise((resolve) => {
+      setTimeout(resolve, timeout);
+    });
+  };
+
+  const getState = () => {
+    setNotAnswering(false);
+    console.log("Refreshing...");
     const message = {
       from: "user",
       cmd: 0,
@@ -56,10 +73,25 @@ const Dashboard = () => {
       // alert(
       //   "Sin respuesta del controlador. Los datos serán actualizados cuando el equipo se reconecte a internet."
       // );
-      setShowAlert(true);
-      // setUpdating(false);
-      setClientStatus("offline");
+      // setConnected(true);
+      setUpdating(false);
+      setNotAnswering(true);
+      // setClientStatus("offline");
+      timerNotAnswering.current = setTimeout(() => {
+        setNotAnswering(false);
+        clearTimeout(timerNotAnswering.current);
+      }, 4000);
     }, 8000);
+  };
+
+  const onRefresh = React.useCallback(() => {
+    setUpdating(true);
+    getState();
+    wait(2000).then(() => setUpdating(false));
+  }, []);
+
+  useEffect(() => {
+    getState();
     return () => {
       clearTimeout(timer.current);
     };
@@ -71,12 +103,19 @@ const Dashboard = () => {
       if (pubnub) {
         const handleAkg = (event) => {
           const akg = event.message;
+          console.log(akg);
           if (akg.cmd === "setState") {
+            console.log(`WaterState set`);
             // setOnline(true);
-            // setUpdating(false)
-            setClientStatus("online");
+            setUpdating(false);
+            // setClientStatus("online");
+            setNotAnswering(false);
             clearTimeout(timer.current);
-            console.log(`WaterState updated => ${event.message.cmd}`);
+            setConnected(true);
+            timerConnected.current = setTimeout(() => {
+              setConnected(false);
+              clearTimeout(timerConnected.current);
+            }, 4000);
           }
         };
         pubnub.addListener({ message: handleAkg });
@@ -104,14 +143,15 @@ const Dashboard = () => {
       const date = new Date();
       setDateTime(date.getTime());
       // displayClock != displayClock;
-    }, 1000);
+    }, 60000);
     return () => {
       clearInterval(id);
     };
   }, []);
 
+  // Current Water State
   useEffect(() => {
-    var waterStateRef = firebase.db
+    var currentWaterStateRef = firebase.db
       .collection("users/" + userId + "/waterState")
       .orderBy("timestamp", "desc")
       .limit(1)
@@ -125,21 +165,19 @@ const Dashboard = () => {
           const valveState = waterState.valveState[zone];
           if (valveState) {
             currentWaterZone = zone.slice(-1);
-            // console.log("currentWaterZone: ", zone.slice(-1));
           }
         }
-        updateWaterState({
+        setCurrentWaterState({
           state: waterState.state,
           currentWaterZone: currentWaterZone,
-          // currentWaterEndTimestamp:waterState.currentWaterEndTimestamp
         });
-        // console.log("Water State: ", waterState);
       });
     return () => {
-      waterStateRef();
+      currentWaterStateRef();
     };
   }, []);
 
+  // Last Auto Water State
   useEffect(() => {
     var waterTimesRef = firebase.db
       .collection("users/" + userId + "/waterState")
@@ -151,78 +189,141 @@ const Dashboard = () => {
         querySnapshot.forEach((doc) => {
           lastAutoWater = doc.data();
         });
-        updateLastAutoWater({
-          currentWaterStartTimestamp: lastAutoWater.currentWaterStartTimestamp,
-          currentWaterEndTimestamp: lastAutoWater.currentWaterEndTimestamp,
-          soilMoistInit: lastAutoWater.soilMoistInit,
+        const startTime = new Date(
+          Math.floor(lastAutoWater.currentWaterStartTimestamp / 60) * 60 * 1000
+        );
+        // const startDate = startTime.getDate();
+        // console.log(`startDate => ${startDate}`);
+        // const startMonth = startTime.getMonth();
+        const endTime = new Date(
+          Math.floor(lastAutoWater.currentWaterEndTimestamp / 60) * 60 * 1000
+        );
+
+        setLastAutoWater({
+          ...lastAutoWater,
+          startTime: startTime,
+          // startDate: startDate,
+          // startMonth: startMonth,
+          endTime: endTime,
+          // soilMoistInit: soilMoistInit,
+          endTimes: lastAutoWater.endTimes,
+          // waterDuration: duration,
         });
-        // console.log("Water Timestamps: ", lastAutoWater);
       });
     return () => {
       waterTimesRef();
     };
-  }, [waterState]);
-
-  useEffect(() => {
-    var state = waterState.state;
-
-    var waterZone = waterState.currentWaterZone + 1;
-
-    var endTime = new Date(
-      Math.floor(lastAutoWater.currentWaterEndTimestamp / 60) * 60 * 1000
-    );
-
-    var remaining = Math.ceil((display.endTime - dateTime) / 1000);
-    if (remaining < 0) remaining = 0;
-    var remainingHr = Math.floor(remaining / 3600);
-    var remainingMin = Math.floor((remaining - remainingHr * 3600) / 60);
-    remainingMin = remainingMin < 10 ? "0" + remainingMin : remainingMin;
-    var remainingSec = remaining - remainingHr * 3600 - remainingMin * 60;
-    remainingSec = remainingSec < 10 ? "0" + remainingSec : remainingSec;
-
-    var startTime = new Date(
-      Math.floor(lastAutoWater.currentWaterStartTimestamp / 60) * 60 * 1000
-    );
-    var duration = Math.ceil((endTime - startTime) / 1000);
-    if (duration < 0) duration = 0;
-    var durationHr = Math.floor(duration / 3600);
-    var durationMin = Math.floor((duration - durationHr * 3600) / 60);
-    durationMin = durationMin < 10 ? "0" + durationMin : durationMin;
-
-    updateDisplay({
-      ...display,
-      state: state,
-      waterZone: waterZone,
-      remainingHr: remainingHr,
-      remainingMin: remainingMin,
-      remainingSec: remainingSec,
-      durationHr: durationHr,
-      durationMin: durationMin,
-      startTime: startTime,
-      endTime: endTime,
-    });
-  }, [waterState, lastAutoWater, dateTime]);
-
-  useEffect(() => {
-    const waterVolume = zones.forEach((zone) => {
-      console.log(`water SP for ${zone.id} => ${zone.zoneDetails.waterQ}`);
-    });
   }, []);
+
+  // Prev Auto Water Duration
+  useEffect(() => {
+    var measuresRef = firebase.db
+      .collection("users/" + userId + "/measures")
+      .where("state", "==", 1)
+      .orderBy("timestamp", "desc")
+      .limit(2)
+      .onSnapshot((querySnapshot) => {
+        var i = 0;
+        var waterLog = {};
+        // var currentDuration = 0;
+        querySnapshot.forEach((doc) => {
+          waterLog = doc.data();
+          if (i == 0) {
+            const startTime = new Date(
+              Math.floor(waterLog.timestamp / 60) * 60 * 1000
+            );
+            const startDate = startTime.getDate();
+            const startMonth = startTime.getMonth();
+            console.log(`startMonth => ${startMonth}`);
+            var duration = 0;
+            console.log(`zones => ${zones}`);
+            zones.forEach((zone) => {
+              // console.log(`water SP for ${zone.id} => ${zone.zoneDetails.waterCapacity}`);
+              duration += waterLog.duration[zone.id] / 60.0;
+            });
+            setLastAutoWater({
+              ...lastAutoWater,
+              startDate: startDate,
+              startMonth: startMonth,
+              waterDuration: duration,
+            });
+          }
+          // console.log(waterDuration.duration);
+          if (i == 1) {
+            var duration = 0;
+            // console.log("Prev Auto Water Duration =>");
+            // console.log(waterDuration.duration);
+            zones.forEach((zone) => {
+              // console.log(`water SP for ${zone.id} => ${zone.zoneDetails.waterCapacity}`);
+              duration += waterLog.duration[zone.id] / 60.0;
+            });
+
+            setPrevAutoWater({ ...prevAutoWater, waterDuration: duration });
+            setLoading(false);
+          }
+          i++;
+        });
+        // setWaterDurationDelta(currentDuration - duration);
+        // setLoading(false);
+      });
+    return () => {
+      measuresRef();
+    };
+  }, [zones]);
+
+  // useEffect(() => {
+  //   if (currentMeasure.soilMoisture != null && prevMeasure.soilMoisture != null)
+  //     setSoilMoistureDelta(
+  //       currentMeasure.soilMoisture - prevMeasure.soilMoisture
+  //     );
+  //   else setSoilMoistureDelta(0);
+  //   // console.log(`Soil Moisture Measure Delta => ${soilMoistureDelta}`);
+  //   // return () => {
+  //   //   cleanup;
+  //   // };
+  // }, [measures]);
+
+  // useEffect(() => {
+  //   if (currentWaterState.state != 0) {
+  //     var remaining = Math.ceil((lastAutoWater.endTime - dateTime) / 1000);
+  //     if (remaining < 0) remaining = 0;
+  //     // var remainingHr = Math.floor(remaining / 3600);
+  //     var remainingMin = Math.floor(remaining /* - remainingHr * 3600 */ / 60);
+  //     remainingMin = remainingMin < 10 ? "0" + remainingMin : remainingMin;
+  //     // var remainingSec = remaining - remainingHr * 3600 - remainingMin * 60;
+  //     // remainingSec = remainingSec < 10 ? "0" + remainingSec : remainingSec;
+
+  //     var duration = Math.ceil(
+  //       (lastAutoWater.endTime - lastAutoWater.startTime) / 1000
+  //     );
+  //     if (duration < 0) duration = 0;
+  //     // var durationHr = Math.floor(duration / 3600);
+  //     var durationMin = Math.floor(duration /* - durationHr * 3600 */ / 60);
+  //     durationMin = durationMin < 10 ? "0" + durationMin : durationMin;
+
+  //     setLastAutoWater({
+  //       ...lastAutoWater,
+  //       remainingMin: remainingMin,
+  //       durationMin: durationMin,
+  //     });
+  //   }
+  // }, [dateTime]);
 
   useEffect(() => {
     var measuresRef = firebase.db
       .collection("users/" + userId + "/measures")
       .orderBy("timestamp", "desc")
-      .limit(500)
+      .limit(200)
       .onSnapshot(
         (querySnapshot) => {
           var i = 0;
 
           var measures = [];
           var soilMoistInitMeasures = [];
-          var currentMeasure = {};
+          var _currentMeasure = {};
+          var _prevMeasure = {};
           querySnapshot.forEach((childMeasure) => {
-            const {
+            var {
               estimatedTemperature,
               soilMoisture,
               soilMoistInit,
@@ -230,41 +331,92 @@ const Dashboard = () => {
             } = childMeasure.data();
             // console.log(`i = ${i} => i % 10 = ${i % 10}`);
             if (i == 0) {
+              // Current
               if (soilMoistInit !== undefined) {
-                // if (soilMoistInit == -1)
-                //   currentMeasure.soilMoisture = 'Sensor';
-                // else
-                if (soilMoistInit == -2) currentMeasure.soilMoisture = "ERROR";
-                else currentMeasure.soilMoisture = Number(soilMoistInit);
-              } else if (soilMoisture == -2)
-                currentMeasure.soilMoisture = "ERROR";
-              else currentMeasure.soilMoisture = Number(soilMoisture);
+                if (soilMoistInit < 0) _currentMeasure.soilMoisture = null;
+                else {
+                  // soilMoistInit = 0;
+                  _currentMeasure.soilMoisture = soilMoistInit;
+                }
+              } else {
+                switch (soilMoisture) {
+                  case -1: // Soil Moisture Sensor Error ! Reading is under AIR value
+                    _currentMeasure.soilMoisture = null;
+                    break;
+                  case -2:
+                    _currentMeasure.soilMoisture = null;
+                    break;
+                  case -3:
+                    _currentMeasure.soilMoisture = null;
+                    break;
+                  case -4:
+                    _currentMeasure.soilMoisture = null;
+                    break;
+                  default:
+                    _currentMeasure.soilMoisture = Number(soilMoisture);
+                    break;
+                }
+              }
+            }
+            if (i == 1) {
+              // Prev
+              if (soilMoistInit !== undefined) {
+                if (soilMoistInit < 0) _prevMeasure.soilMoisture = null;
+                else {
+                  // soilMoistInit = 0;
+                  _prevMeasure.soilMoisture = soilMoistInit;
+                }
+              } else {
+                switch (soilMoisture) {
+                  case -1: // Soil Moisture Sensor Error ! Reading is under AIR value
+                    _prevMeasure.soilMoisture = null;
+                    break;
+                  case -2:
+                    _prevMeasure.soilMoisture = null;
+                    break;
+                  case -3:
+                    _prevMeasure.soilMoisture = null;
+                    break;
+                  case -4:
+                    _prevMeasure.soilMoisture = null;
+                    break;
+                  default:
+                    _prevMeasure.soilMoisture = Number(soilMoisture);
+                    break;
+                }
+              }
             }
             if (soilMoistInit !== undefined) {
+              soilMoistInit >= 0
+                ? (soilMoistInit = Number(soilMoistInit))
+                : (soilMoistInit = 0);
               soilMoistInitMeasures.push({
                 timestamp: new Date(timestamp * 1000),
-                soilMoistInit: Number(soilMoistInit),
+                soilMoistInit: soilMoistInit,
               });
-            } else if (i % 20 == 0) {
+            } /* if (i % 1 == 0) */ else {
               // console.log(`Display measure number: ${i}`);
+              soilMoisture >= 0
+                ? (soilMoisture = Number(soilMoisture))
+                : (soilMoisture = null);
               measures.push({
                 timestamp: new Date(timestamp * 1000),
                 // .toLocaleDateString(
                 //   undefined,
                 //   options
                 // ),
-                soilMoisture: Number(soilMoisture),
+                soilMoisture: soilMoisture,
                 temperature: Number(estimatedTemperature),
                 // label: "Humedad",
               });
             }
             i++;
           });
+          setPrevMeasure(_prevMeasure);
+          setCurrentMeasure(_currentMeasure);
           updateMeasures(measures);
           updateSoilMoistInitMeasures(soilMoistInitMeasures);
-          updateCurrentMeasure(currentMeasure);
-          console.log(soilMoistInitMeasures);
-          setLoading(false);
+          // console.log(soilMoistInitMeasures);
         },
         (error) => {
           // var errorCode = error.code;
@@ -281,104 +433,148 @@ const Dashboard = () => {
     return (
       <View style={styles.containerLoading}>
         <StatusBar style="light" />
-        <ActivityIndicator size="large" color="#3034ba" />
+        <ActivityIndicator size="large" color={theme.SECONDARY_COLOR} />
       </View>
     );
   else
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style="light" />
-        <ScrollView style={styles.body}>
-          <View>
-            {clientStatus == "updating" ? (
-              <View style={styles.text}>
-                <Text style={styles.textLarge}>Actualizando...</Text>
-                <ActivityIndicator size="small" color="#3034ba" />
-              </View>
-            ) : (
-              <View>
-                {clientStatus == "online" ? (
-                  <View>
-                    <View style={styles.text}>
-                      <Text style={styles.textLarge}>Último Riego</Text>
-                      <Icon name="done" color="#1db954" size={18} />
-                    </View>
-
-                    <View style={styles.text}>
-                      <Text style={styles.textSmall}>Fecha:</Text>
-                      <Text style={styles.textLarge}>
-                        {display.startTime.getUTCDate()}/
-                        {display.startTime.getUTCMonth() + 1}
-                      </Text>
-                    </View>
-
-                    <View style={styles.text}>
-                      <Text style={styles.textSmall}>Volumen:</Text>
-                      <Text style={styles.textLarge}>
-                        {/* {display.durationHr}:{display.durationMin} */}
-                      </Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View>
-                    <View style={styles.text}>
-                      <Text style={styles.textLarge}>Error de conexión</Text>
-                      {/* <Icon name="schedule" color="#b3b3b3" size={18} /> */}
-                    </View>
-                  </View>
-                )}
-              </View>
-            )}
+        <ScrollView
+          style={styles.body}
+          refreshControl={
+            <RefreshControl
+              refreshing={updating}
+              onRefresh={onRefresh}
+              colors={[theme.PRIMARY_COLOR, theme.SECONDARY_COLOR]}
+            />
+          }
+        >
+          <View style={styles.row}>
+            <Text style={styles.textLarge}>Humedad del Suelo:</Text>
+            <View style={styles.dataItem}>
+              {soilMoistureDelta != 0 ? (
+                <Icon
+                  name={soilMoistureDelta > 0 ? "arrow-up" : "arrow-down"}
+                  color={
+                    soilMoistureDelta > 0
+                      ? theme.PRIMARY_COLOR
+                      : theme.TERTIARY_COLOR
+                  }
+                  size={18}
+                  type="entypo"
+                />
+              ) : (
+                <View></View>
+              )}
+              <Text style={styles.textLarge}>
+                {" "}
+                {Math.round(currentMeasure.soilMoisture)}%
+              </Text>
+            </View>
           </View>
-
-          {waterState.state == 1 && (
+          {currentWaterState.state == 0 && (
             <View>
-              <View style={styles.text}>
+              <View style={styles.row}>
+                <Text style={styles.textLarge}>Último Riego</Text>
+                <Icon
+                  name="check"
+                  color={theme.PRIMARY_COLOR}
+                  size={18}
+                  type="entypo"
+                />
+              </View>
+
+              <View style={styles.row}>
+                <Text style={styles.textSmall}>Fecha:</Text>
                 <Text style={styles.textLarge}>
-                  Regando Zona {waterState.currentWaterZone}
+                  {lastAutoWater.startDate}/{lastAutoWater.startMonth + 1}
                 </Text>
               </View>
-              <View style={styles.text}>
+
+              <View style={styles.row}>
+                <Text style={styles.textSmall}>Duración:</Text>
+
+                <View style={styles.dataItem}>
+                  {lastAutoWater.waterDuration - prevAutoWater.waterDuration !=
+                  0 ? (
+                    <Icon
+                      name={
+                        lastAutoWater.waterDuration -
+                          prevAutoWater.waterDuration >
+                        0
+                          ? "arrow-up"
+                          : "arrow-down"
+                      }
+                      color={
+                        lastAutoWater.waterDuration -
+                          prevAutoWater.waterDuration >
+                        0
+                          ? theme.PRIMARY_COLOR
+                          : theme.TERTIARY_COLOR
+                      }
+                      size={18}
+                      type="entypo"
+                    />
+                  ) : (
+                    <View></View>
+                  )}
+                  <Text style={styles.textLarge}>
+                    {" "}
+                    {Math.round(lastAutoWater.waterDuration)} min
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {currentWaterState.state == 1 && (
+            <View>
+              <View style={styles.row}>
+                <Text style={styles.textLarge}>Regando</Text>
+                <Text style={styles.textLarge}>
+                  Zona {currentWaterState.currentWaterZone}
+                </Text>
+              </View>
+              <View style={styles.row}>
                 <Text style={styles.textSmall}>Tiempo Pendiente:</Text>
                 <Text style={styles.textLarge}>
-                  {display.remainingHr}:{display.remainingMin}:
-                  {display.remainingSec}
+                  {lastAutoWater.remainingMin} min
                 </Text>
               </View>
-            </View>
-          )}
-          {waterState.state == 2 && (
-            <View>
-              <View style={styles.text}>
+              <View style={styles.row}>
+                <Text style={styles.textSmall}>Duración Estimada:</Text>
                 <Text style={styles.textLarge}>
-                  Regando Manual Zona {waterState.currentWaterZone}
+                  {Math.round(lastAutoWater.waterDuration)} min
                 </Text>
               </View>
             </View>
           )}
-          {waterState.state == 3 && (
+          {currentWaterState.state == 2 && (
             <View>
-              <View style={styles.text}>
+              <View style={styles.row}>
                 <Text style={styles.textLarge}>
-                  Prueba Zona {waterState.currentWaterZone}
+                  Regando Manual Zona {currentWaterState.currentWaterZone}
                 </Text>
               </View>
             </View>
           )}
-          {waterState.state == 4 && (
+          {currentWaterState.state == 3 && (
             <View>
-              <View style={styles.text}>
+              <View style={styles.row}>
+                <Text style={styles.textLarge}>
+                  Prueba Zona {currentWaterState.currentWaterZone}
+                </Text>
+              </View>
+            </View>
+          )}
+          {currentWaterState.state == 4 && (
+            <View>
+              <View style={styles.row}>
                 <Text style={styles.textLarge}>Llenando Tanque</Text>
               </View>
             </View>
           )}
-
-          <View style={styles.text}>
-            <Text style={styles.textSmall}>Humedad del Suelo:</Text>
-            <Text style={styles.textLarge}>
-              {Math.round(currentMeasure.soilMoisture)}%
-            </Text>
-          </View>
 
           <View style={styles.chart}>
             <VictoryChart
@@ -386,28 +582,51 @@ const Dashboard = () => {
               theme={VictoryTheme.material}
               scale={{ x: "time" }}
               // containerComponent={
-              // <VictoryVoronoiContainer
-              //   voronoiDimension="x"
-              //   labels={({ datum }) => `${datum.x}: ${datum.y}`}
-              //   labelComponent={
-              //     <VictoryTooltip
-              //       cornerRadius={0}
-              //       flyoutStyle={{ fill: "white" }}
-              //     />
-              //   }
-              // />
+              //   <VictoryVoronoiContainer
+              //     voronoiDimension="x"
+              //     labels={({ datum }) => `${datum.x}: ${datum.y}`}
+              //     labelComponent={
+              //       <VictoryTooltip
+              //         cornerRadius={0}
+              //         flyoutStyle={{ fill: "white" }}
+              //       />
+              //     }
+              //   />
               // }
             >
+              <VictoryAxis
+                // tickValues={measures.map((d) => new Date(d.timestamp))}
+                tickFormat={(t) => `${t.getDate()}/${t.getMonth() + 1}`}
+                tickCount={3}
+                // tickFormat={(date) =>
+                //   date.toLocaleDateString("es-AR", { year: "none" })
+                // }
+              />
+              <VictoryAxis
+                dependentAxis
+                crossAxis
+                // width={400}
+                // height={400}
+                domain={[0, 100]}
+                theme={VictoryTheme.grayscale}
+                // offsetY={200}
+                standalone={false}
+              />
+              <VictoryAxis dependentAxis />
               <VictoryLine
                 interpolation="monotoneX"
                 data={measures}
                 x="timestamp"
                 y="soilMoisture"
                 style={{
-                  data: { stroke: "#494DF2" },
+                  data: {
+                    stroke: theme.SECONDARY_COLOR,
+                    strokeWidth: 3,
+                    strokeLinecap: "round",
+                  },
                 }}
               />
-              {/* <VictoryLine
+              <VictoryLine
                 interpolation="monotoneX"
                 data={measures}
                 x="timestamp"
@@ -415,19 +634,14 @@ const Dashboard = () => {
                 style={{
                   data: { stroke: "#F21F18" },
                 }}
-              /> */}
+              />
               <VictoryScatter
-                style={{ data: { fill: "#1EBA55" } }}
+                style={{ data: { fill: theme.PRIMARY_COLOR } }}
                 size={7}
                 x="timestamp"
                 y="soilMoistInit"
                 data={soilMoistInitMeasures}
               />
-              <VictoryAxis
-                // tickValues={measures.map((d) => new Date(d.timestamp))}
-                tickFormat={(t) => `${t.getUTCDate()}/${t.getUTCMonth() + 1}`}
-              />
-              <VictoryAxis dependentAxis />
             </VictoryChart>
           </View>
           {/* {showAlert && (
@@ -436,10 +650,28 @@ const Dashboard = () => {
             </View>
           )} */}
         </ScrollView>
-        <View style={styles.footer}>
-          <Text>Conectado</Text>
-          <Icon name="done" color="#1db954" size={18} />
-        </View>
+        {connected && (
+          <View style={styles.footer}>
+            <Text style={styles.textLarge}>Actualizado</Text>
+            <Icon
+              name="check"
+              color={theme.PRIMARY_COLOR}
+              size={18}
+              type="entypo"
+            />
+          </View>
+        )}
+        {notAnswering && (
+          <View style={styles.footer}>
+            <Text style={styles.textLarge}>Sin Respuesta</Text>
+            <Icon
+              name="warning"
+              color={theme.TERTIARY_COLOR}
+              size={18}
+              type="entypo"
+            />
+          </View>
+        )}
       </SafeAreaView>
     );
 };

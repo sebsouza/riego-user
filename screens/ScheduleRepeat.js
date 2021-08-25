@@ -10,11 +10,12 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from "react-native";
-import firebase from "../database/Firebase";
-import { Input, Divider, Slider } from "react-native-elements";
-import { useUserId } from "../context/UserContext";
-import { usePubNub } from "pubnub-react";
+// import firebase from "../database/Firebase";
+// import { Input, Divider, Slider } from "react-native-elements";
+// import { useUserId } from "../context/UserContext";
+// import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
+import theme from "../styles/theme.style";
 
 const ScheduleRepeat = (props) => {
   const [scheduleConfig, updateScheduleConfig] = useState(
@@ -38,7 +39,9 @@ const ScheduleRepeat = (props) => {
           <Text style={styles.textSmall}>Domingo: </Text>
           <Switch
             trackColor={{ false: "#767577", true: "#81b0ff" }}
-            thumbColor={scheduleConfig.wdayOn[0] ? "#618833" : "#f4f3f4"}
+            thumbColor={
+              scheduleConfig.wdayOn[0] ? theme.PRIMARY_COLOR : "#f4f3f4"
+            }
             ios_backgroundColor="#3e3e3e"
             onValueChange={(value) => toggleSwitch(0, value)}
             value={scheduleConfig.wdayOn[0]}
@@ -48,7 +51,9 @@ const ScheduleRepeat = (props) => {
           <Text style={styles.textSmall}>Lunes: </Text>
           <Switch
             trackColor={{ false: "#767577", true: "#81b0ff" }}
-            thumbColor={scheduleConfig.wdayOn[1] ? "#618833" : "#f4f3f4"}
+            thumbColor={
+              scheduleConfig.wdayOn[1] ? theme.PRIMARY_COLOR : "#f4f3f4"
+            }
             ios_backgroundColor="#3e3e3e"
             onValueChange={(value) => toggleSwitch(1, value)}
             value={scheduleConfig.wdayOn[1]}
@@ -58,7 +63,9 @@ const ScheduleRepeat = (props) => {
           <Text style={styles.textSmall}>Martes: </Text>
           <Switch
             trackColor={{ false: "#767577", true: "#81b0ff" }}
-            thumbColor={scheduleConfig.wdayOn[2] ? "#618833" : "#f4f3f4"}
+            thumbColor={
+              scheduleConfig.wdayOn[2] ? theme.PRIMARY_COLOR : "#f4f3f4"
+            }
             ios_backgroundColor="#3e3e3e"
             onValueChange={(value) => toggleSwitch(2, value)}
             value={scheduleConfig.wdayOn[2]}
@@ -68,7 +75,9 @@ const ScheduleRepeat = (props) => {
           <Text style={styles.textSmall}>Miércoles: </Text>
           <Switch
             trackColor={{ false: "#767577", true: "#81b0ff" }}
-            thumbColor={scheduleConfig.wdayOn[3] ? "#618833" : "#f4f3f4"}
+            thumbColor={
+              scheduleConfig.wdayOn[3] ? theme.PRIMARY_COLOR : "#f4f3f4"
+            }
             ios_backgroundColor="#3e3e3e"
             onValueChange={(value) => toggleSwitch(3, value)}
             value={scheduleConfig.wdayOn[3]}
@@ -78,7 +87,9 @@ const ScheduleRepeat = (props) => {
           <Text style={styles.textSmall}>Jueves: </Text>
           <Switch
             trackColor={{ false: "#767577", true: "#81b0ff" }}
-            thumbColor={scheduleConfig.wdayOn[4] ? "#618833" : "#f4f3f4"}
+            thumbColor={
+              scheduleConfig.wdayOn[4] ? theme.PRIMARY_COLOR : "#f4f3f4"
+            }
             ios_backgroundColor="#3e3e3e"
             onValueChange={(value) => toggleSwitch(4, value)}
             value={scheduleConfig.wdayOn[4]}
@@ -88,7 +99,9 @@ const ScheduleRepeat = (props) => {
           <Text style={styles.textSmall}>Viernes: </Text>
           <Switch
             trackColor={{ false: "#767577", true: "#81b0ff" }}
-            thumbColor={scheduleConfig.wdayOn[5] ? "#618833" : "#f4f3f4"}
+            thumbColor={
+              scheduleConfig.wdayOn[5] ? theme.PRIMARY_COLOR : "#f4f3f4"
+            }
             ios_backgroundColor="#3e3e3e"
             onValueChange={(value) => toggleSwitch(5, value)}
             value={scheduleConfig.wdayOn[5]}
@@ -98,7 +111,9 @@ const ScheduleRepeat = (props) => {
           <Text style={styles.textSmall}>Sábado: </Text>
           <Switch
             trackColor={{ false: "#767577", true: "#81b0ff" }}
-            thumbColor={scheduleConfig.wdayOn[6] ? "#618833" : "#f4f3f4"}
+            thumbColor={
+              scheduleConfig.wdayOn[6] ? theme.PRIMARY_COLOR : "#f4f3f4"
+            }
             ios_backgroundColor="#3e3e3e"
             onValueChange={(value) => toggleSwitch(6, value)}
             value={scheduleConfig.wdayOn[6]}

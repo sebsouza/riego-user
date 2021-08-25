@@ -1,5 +1,5 @@
 import "react-native-gesture-handler";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
   Text,
@@ -13,10 +13,55 @@ import {
 import firebase from "../database/Firebase";
 import { Divider, ListItem } from "react-native-elements";
 import DateTimePicker from "@react-native-community/datetimepicker";
-// import { CalendarList } from "react-native-calendars";
-import { useUserId } from "../context/UserContext";
+import { CalendarList, LocaleConfig } from "react-native-calendars";
+import { useUserId, useSchedule, useMarkedDates } from "../context/UserContext";
 import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
+import theme from "../styles/theme.style";
+import { useFocusEffect } from "@react-navigation/native";
+
+LocaleConfig.locales["es"] = {
+  monthNames: [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ],
+  monthNamesShort: [
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic",
+  ],
+  dayNames: [
+    "Domingo",
+    "Lunes",
+    "Martes",
+    "Miércoles",
+    "Jueves",
+    "Viernes",
+    "Sábado",
+  ],
+  dayNamesShort: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
+  today: "Hoy",
+};
+LocaleConfig.defaultLocale = "es";
 
 const testIDs = {
   menu: {
@@ -42,28 +87,89 @@ const testIDs = {
   expandableCalendar: { CONTAINER: "expandableCalendar" },
   weekCalendar: { CONTAINER: "weekCalendar" },
 };
-const RANGE = 24;
-const initialDate = new Date();
+const RANGE = 12;
+
+function formatDate(date) {
+  var d = new Date(date),
+    month = "" + (d.getMonth() + 1),
+    day = "" + d.getDate(),
+    year = d.getFullYear();
+
+  if (month.length < 2) month = "0" + month;
+  if (day.length < 2) day = "0" + day;
+
+  return [year, month, day].join("-");
+}
+
+const initialDate = formatDate(new Date());
+// const calendarWidth = "80%";
 
 const Schedule = (props) => {
   const pubnub = usePubNub();
   const userId = useUserId();
-  const [scheduleConfig, updateScheduleConfig] = useState({});
+
+  const [scheduleConfig, updateScheduleConfig] = useState(useSchedule());
   const [initializing, setInitializing] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState(initialDate);
-  const [waterAutoLog, setWaterAutoLog] = useState({});
+  // const [autoWaterLog, setAutoWaterLog] = useState(useMarkedDates());
+  // const [markedDates, setMarkedDates] = useState({
+  //   [selected]: {
+  //     selected: true,
+  //     disableTouchEvent: true,
+  //     selectedColor: "#ff0000",
+  //     selectedTextColor: "white",
+  //   },
+  // });
+  // var markedDates = {
+  //   [selected]: {
+  //     selected: true,
+  //     disableTouchEvent: true,
+  //     selectedColor: theme.SECONDARY_COLOR,
+  //     selectedTextColor: "white",
+  //   },
+  // };
+  // var markedDates = {
+  //   [selected]: {
+  //     selected: true,
+  //     disableTouchEvent: true,
+  //     selectedColor: theme.SECONDARY_COLOR,
+  //     selectedTextColor: "white",
+  //   },
+  //   // "2021-08-16": {
+  //   //   selected: true,
+  //   //   // marked: true,
+  //   //   selectedColor: theme.PRIMARY_COLOR,
+  //   // },
+  //   // "2021-08-17": { marked: true },
+  //   // "2021-08-18": {
+  //   //   marked: true,
+  //   //   dotColor: "red",
+  //   //   activeOpacity: 0,
+  //   // },
+  //   // "2021-08-19": { disabled: true, disableTouchEvent: true },
+  // };
+  const autoWaterLog = useMarkedDates();
   const markedDates = {
     [selected]: {
       selected: true,
       disableTouchEvent: true,
-      selectedColor: "#5E60CE",
+      selectedColor: theme.SECONDARY_COLOR,
       selectedTextColor: "white",
     },
+    ...autoWaterLog,
   };
   const [showWater1Time, setShowWater1Time] = useState(false);
   const [showWater2Time, setShowWater2Time] = useState(false);
   const timer = useRef(null); // we can save timer in useRef and pass it to child
+
+  useFocusEffect(
+    useCallback(() => {
+      if (scheduleConfig && scheduleConfig !== null) {
+        console.log(`useFocusEffect`);
+      }
+    }, [scheduleConfig])
+  );
 
   // console.log(typeof markedDates);
   const onDayPress = (day) => {
@@ -80,7 +186,7 @@ const Schedule = (props) => {
             setSaving(false);
             clearTimeout(timer.current);
             console.log(`Schedule Config Changes Applied.`);
-            alert(`Los cambios en la agenda fueron aplicados correctamente.`);
+            // alert(`Los cambios en la agenda fueron aplicados correctamente.`);
             // props.navigation.reset({
             //   index: 0,
             //   routes: [{ name: "Main" }],
@@ -98,62 +204,64 @@ const Schedule = (props) => {
     }
   }, [pubnub]);
 
-  useEffect(() => {
-    var scheduleConfigRef = firebase.db
-      .collection("users/" + userId + "/config")
-      .doc("schedule")
-      .onSnapshot((snapshot) => {
-        const scheduleConfig = snapshot.data();
-        updateScheduleConfig(scheduleConfig);
-        // setWater1Time(
-        //   new Date(
-        //     scheduleConfig.water1StartHour * 3600000 +
-        //       scheduleConfig.water1StartMinute * 60000
-        //   )
-        // );
-        setInitializing(false);
-        // console.log(`Water 1 Time initialized.`);
-        // console.log(`Schedule Config updated`);
-      });
-    return () => {
-      // scheduleConfigRef();
-    };
-  }, []);
+  // useEffect(() => {
+  //   var _markedDates = {
+  //     // [selected]: {
+  //     //   selected: true,
+  //     //   disableTouchEvent: true,
+  //     //   selectedColor: theme.SECONDARY_COLOR,
+  //     //   selectedTextColor: "white",
+  //     // },
+  //   };
+  //   // if (initializing) {
+  //   var measuresRef = firebase.db
+  //     .collection("users/" + userId + "/measures")
+  //     .where("state", "==", 1)
+  //     .orderBy("timestamp", "desc")
+  //     .limit(5)
+  //     .onSnapshot((querySnapshot) => {
+  //       querySnapshot.forEach((doc) => {
+  //         const waterAutoState = doc.data();
+  //         const waterAutoDate = new Date(
+  //           Math.floor(waterAutoState.timestamp / 60) * 60 * 1000
+  //         );
+  //         const waterAutoFormatDate = formatDate(waterAutoDate);
+  //         console.log(waterAutoFormatDate);
 
-  var options = { year: "numeric", month: "numeric", day: "numeric" };
-  useEffect(() => {
-    var waterAutoLogRef = firebase.db
-      .collection("users/" + userId + "/waterState")
-      .where("state", "==", 1)
-      .orderBy("timestamp", "desc")
-      .limit(10)
-      .onSnapshot((querySnapshot) => {
-        // var waterAutoLog = {};
-        querySnapshot.forEach((doc) => {
-          var waterAutoState = doc.data();
-          var waterAutoDate = new Date(
-            Math.floor(waterAutoState.currentWaterStartTimestamp / 60) *
-              60 *
-              1000
-          );
-          markedDates[waterAutoDate.toLocaleDateString("es-CL", options)] = {
-            marked: true,
-            dotColor: "red",
-          };
-          setWaterAutoLog({
-            ...waterAutoLog,
-            Date: waterAutoDate,
-            soilMoistInit: waterAutoState.soilMoistInit,
-          });
-          // console.log("waterAutoState: ", waterAutoState);
-        });
-        console.log(markedDates);
-        // setLoading(false);
-      });
-    return () => {
-      waterAutoLogRef();
-    };
-  }, []);
+  //         _markedDates[waterAutoFormatDate] = {
+  //           marked: true,
+  //           dotColor: theme.PRIMARY_COLOR,
+  //         };
+
+  //         // setWaterAutoLog({
+  //         //   ...waterAutoLog,
+  //         //   date: waterAutoDate,
+  //         //   soilMoistInit: waterAutoState.soilMoistInit,
+  //         //   duration: waterAutoState.duration,
+  //         // });
+  //         // console.log("waterAutoState: ", waterAutoState);
+  //       });
+  //       // markedDates = { ...markedDates, ..._markedDates };
+  //       console.log(markedDates);
+  //     });
+  //   // }
+  //   return () => {
+  //     measuresRef();
+  //   };
+  // }, []);
+
+  // useEffect(() => {
+  //   for (const key in waterAutoLog) {
+  //     if (Object.hasOwnProperty.call(waterAutoLog, key)) {
+  //       markedDates[key] = waterAutoLog[key];
+  //       // console.log(markedDates);
+  //     }
+  //   }
+  //   // console.log("markedDates");
+  //   // return () => {
+  //   //   cleanup
+  //   // }
+  // }, [waterAutoLog]);
 
   const handleSave = (cmd) => {
     const message = {
@@ -238,64 +346,62 @@ const Schedule = (props) => {
     handleSave(2);
   };
 
-  if (initializing)
+  // if (initializing)
+  //   return (
+  //     <View
+  //       style={{
+  //         flex: 1,
+  //         padding: 35,
+  //         marginTop: 150,
+  //       }}
+  //     >
+  //       <ActivityIndicator size="large" color="#00b0ff" />
+  //       <StatusBar style="light" />
+  //     </View>
+  //   );
+  // else
+  if (saving)
     return (
-      <View
-        style={{
-          flex: 1,
-          padding: 35,
-          marginTop: 150,
-        }}
-      >
-        <ActivityIndicator size="large" color="#00b0ff" />
+      <View style={styles.containerLoading}>
         <StatusBar style="light" />
-      </View>
-    );
-  else if (saving)
-    return (
-      <View
-        style={{
-          flex: 1,
-          padding: 35,
-          marginTop: 150,
-        }}
-      >
-        <ActivityIndicator size="large" color="#03ff13" />
-        <StatusBar style="light" />
+        <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
       </View>
     );
   else
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style="light" />
-        <ScrollView>
-          {/*    <View style={{ height: 340, width: 320 }}>
-            <CalendarList
-              testID={testIDs.calendarList.CONTAINER}
-              current={initialDate}
-              pastScrollRange={RANGE}
-              futureScrollRange={RANGE}
-              renderHeader={renderCustomHeader}
-              theme={theme}
-              onDayPress={onDayPress}
-              // markedDates={markedDates}
-              markedDates={{
-                "2021-06-16": {
-                  selected: true,
-                  marked: true,
-                  selectedColor: "blue",
-                },
-                "2021-06-17": { marked: true },
-                "2021-06-18": {
-                  marked: true,
-                  dotColor: "red",
-                  activeOpacity: 0,
-                },
-                "2021-06-19": { disabled: true, disableTouchEvent: true },
-              }}
-            />
-          </View> */}
 
+        <View style={styles.calendarList}>
+          <CalendarList
+            testID={testIDs.horizontalList.CONTAINER}
+            current={initialDate}
+            pastScrollRange={RANGE}
+            futureScrollRange={RANGE}
+            horizontal
+            pagingEnabled
+            calendarWidth={340}
+            renderHeader={renderCustomHeader}
+            theme={themeCalendar}
+            onDayPress={onDayPress}
+            markedDates={markedDates}
+            // markedDates={{
+            //   "2021-08-16": {
+            //     selected: true,
+            //     // marked: true,
+            //     selectedColor: theme.PRIMARY_COLOR,
+            //   },
+            //   "2021-08-17": { marked: true },
+            //   "2021-08-18": {
+            //     marked: true,
+            //     dotColor: "red",
+            //     activeOpacity: 0,
+            //   },
+            //   // "2021-08-19": { disabled: true, disableTouchEvent: true },
+            // }}
+          />
+        </View>
+        <ScrollView>
           <ListItem
             containerStyle={{
               backgroundColor: "#121212",
@@ -303,7 +409,7 @@ const Schedule = (props) => {
             }}
             onPress={() => {
               setShowWater1Time(true);
-              console.log(`Water 1 Time Picker pressed.`);
+              // console.log(`Water 1 Time Picker pressed.`);
             }}
           >
             <ListItem.Content>
@@ -330,10 +436,10 @@ const Schedule = (props) => {
             }}
           >
             <ListItem.Content>
-              <ListItem.Title style={{ color: "#b3b3b3" }}>
+              <ListItem.Title style={{ color: theme.SECONDARY_TEXT_COLOR }}>
                 Horario Riego Refuerzo (Verano)
               </ListItem.Title>
-              <ListItem.Subtitle style={{ color: "#535353" }}>
+              <ListItem.Subtitle style={{ color: theme.TERTIARY_TEXT_COLOR }}>
                 {scheduleConfig.water2StartHour}:
                 {scheduleConfig.water2StartMinute > 9
                   ? scheduleConfig.water2StartMinute
@@ -355,9 +461,18 @@ const Schedule = (props) => {
             }}
           >
             <ListItem.Content>
-              <ListItem.Title style={{ color: "#b3b3b3" }}>
+              <ListItem.Title style={{ color: theme.SECONDARY_TEXT_COLOR }}>
                 Repetir
               </ListItem.Title>
+              <ListItem.Subtitle style={{ color: theme.TERTIARY_TEXT_COLOR }}>
+                {scheduleConfig.wdayOn[0] ? "Dom " : ""}
+                {scheduleConfig.wdayOn[1] ? "Lun " : ""}
+                {scheduleConfig.wdayOn[2] ? "Mar " : ""}
+                {scheduleConfig.wdayOn[3] ? "Mié " : ""}
+                {scheduleConfig.wdayOn[4] ? "Jue " : ""}
+                {scheduleConfig.wdayOn[5] ? "Vie " : ""}
+                {scheduleConfig.wdayOn[6] ? "Sáb " : ""}
+              </ListItem.Subtitle>
             </ListItem.Content>
             <ListItem.Chevron />
           </ListItem>
@@ -365,7 +480,7 @@ const Schedule = (props) => {
           <Divider style={{ padding: 10, backgroundColor: "#121212" }} />
           <Button
             title="Aplicar"
-            color="#1db954"
+            color={theme.PRIMARY_COLOR}
             onPress={() => saveConfig()}
           />
           <View>
@@ -424,20 +539,22 @@ const Schedule = (props) => {
     );
 };
 
-const theme = {
+const themeCalendar = {
+  calendarBackground: "#121212",
+  dayTextColor: theme.TERTIARY_TEXT_COLOR,
   "stylesheet.calendar.header": {
     dayHeader: {
       fontWeight: "600",
-      color: "#48BFE3",
+      color: theme.SECONDARY_TEXT_COLOR,
     },
   },
   "stylesheet.day.basic": {
     today: {
-      borderColor: "#48BFE3",
+      borderColor: "#121212",
       borderWidth: 0.8,
     },
     todayText: {
-      color: "#5390D9",
+      color: theme.PRIMARY_TEXT_COLOR,
       fontWeight: "800",
     },
   },
@@ -451,7 +568,7 @@ function renderCustomHeader(date) {
     fontWeight: "bold",
     paddingTop: 10,
     paddingBottom: 10,
-    color: "#5E60CE",
+    color: theme.PRIMARY_TEXT_COLOR,
     paddingRight: 5,
   };
 

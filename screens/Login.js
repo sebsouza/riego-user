@@ -7,13 +7,18 @@ import {
   useUserIdUpdate,
   useZonesUpdate,
   useSystemConfigUpdate,
+  useScheduleUpdate,
+  useMarkedDatesUpdate,
 } from "../context/UserContext";
 import { styles } from "../styles";
+import theme from "../styles/theme.style";
 
 const Login = (props) => {
   const getUserId = useUserIdUpdate();
   const getZones = useZonesUpdate();
   const getSystemConfig = useSystemConfigUpdate();
+  const getSchedule = useScheduleUpdate();
+  const getMarkedDates = useMarkedDatesUpdate();
   const [initializing, setInitializing] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loginUser, setLoginUser] = useState({
@@ -30,6 +35,8 @@ const Login = (props) => {
         getUserId();
         getZones();
         getSystemConfig();
+        getSchedule();
+        getMarkedDates();
         console.log("User data loaded.");
         // setInitializing(false);
 
@@ -80,14 +87,14 @@ const Login = (props) => {
   if (initializing)
     return (
       <View style={styles.containerLoading}>
-        <ActivityIndicator size="large" color="#00b0ff" />
+        <ActivityIndicator size="large" color={theme.SECONDARY_COLOR} />
         <StatusBar style="light" />
       </View>
     );
   else if (saving)
     return (
       <View style={styles.containerLoading}>
-        <ActivityIndicator size="large" color="#1db954" />
+        <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
         <StatusBar style="light" />
       </View>
     );
@@ -114,7 +121,7 @@ const Login = (props) => {
           <View>
             <Button
               title="Conectar"
-              color="#1db954"
+              color={theme.PRIMARY_COLOR}
               onPress={() => setLogin()}
             />
           </View>

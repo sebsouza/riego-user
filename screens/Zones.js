@@ -1,5 +1,5 @@
 import "react-native-gesture-handler";
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
   View,
@@ -9,15 +9,30 @@ import {
 } from "react-native";
 import firebase from "../database/Firebase";
 import { ListItem } from "react-native-elements";
-import { useUserId } from "../context/UserContext";
+import { useUserId, useZones, useZonesUpdate } from "../context/UserContext";
 // import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
+import { useFocusEffect } from "@react-navigation/native";
 
 const Zones = (props) => {
   // const pubnub = usePubNub();
-  const userId = useUserId();
-  const [initializing, setInitializing] = useState(true);
-  const [zoneConfig, updateZoneConfig] = useState([]);
+  // const userId = useUserId();
+  // const [initializing, setInitializing] = useState(true);
+  // const getZones = useZonesUpdate();
+  const zones = useZones();
+  const [zoneConfig, setZoneConfig] = useState(zones);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (zones && zones !== null) {
+        // console.log(`useFocusEffect`);
+        setZoneConfig(zones);
+      }
+      // setZoneConfig(useZones());
+      // return () => unsubscribe();
+    }, [zones])
+  );
+
   // const getZoneConfig = useZoneConfigUpdate();
   // getZoneConfig();
   // const zoneConfig = useZoneConfig();
@@ -62,75 +77,74 @@ const Zones = (props) => {
   //   }
   // }, [pubnub]);
 
-  useEffect(() => {
-    var zoneConfigRef = firebase.db
-      .collection("users/" + userId + "/zones")
-      .onSnapshot((querySnapshot) => {
-        const _zoneConfig = [];
-        querySnapshot.forEach((doc) => {
-          const zoneDetails = doc.data();
-          console.log(doc.id, " => ", zoneDetails);
-          _zoneConfig.push({
-            id: doc.id,
-            zoneDetails,
-          });
-        });
-        updateZoneConfig(_zoneConfig);
-        setInitializing(false);
-      });
-    return () => {
-      // zoneConfigRef();
-    };
-  }, []);
+  // useEffect(() => {
+  //   var zoneConfigRef = firebase.db
+  //     .collection("users/" + userId + "/zones")
+  //     .onSnapshot((querySnapshot) => {
+  //       const _zoneConfig = [];
+  //       querySnapshot.forEach((doc) => {
+  //         const zoneDetails = doc.data();
+  //         console.log(doc.id, " => ", zoneDetails);
+  //         _zoneConfig.push({
+  //           id: doc.id,
+  //           zoneDetails,
+  //         });
+  //       });
+  //       updateZoneConfig(_zoneConfig);
+  //       setInitializing(false);
+  //     });
+  //   return () => {
+  //     // zoneConfigRef();
+  //   };
+  // }, []);
 
-  if (initializing)
-    return (
-      <View
-        style={{
-          flex: 1,
-          padding: 35,
-          marginTop: 150,
-        }}
-      >
-        <ActivityIndicator size="large" color="#00b0ff" />
-        <StatusBar style="light" />
-      </View>
-    );
-  else
-    return (
-      <SafeAreaView style={styles.container}>
+  // if (initializing)
+  //   return (
+  //     <View style={styles.container}>
+  //       <ActivityIndicator size="large" color="#3034ba" />
+  //       <StatusBar style="light" />
+  //     </View>
+  //   );
+  // else
+  return (
+    <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
-        <ScrollView>
-          {zoneConfig.map((zone, index) => {
-            return (
-              <ListItem
-                key={index}
-                bottomDivider
-                containerStyle={{
-                  backgroundColor: "#212121",
-                }}
-                onPress={() => {
-                  props.navigation.navigate("ZoneDetails", {
-                    zoneNumber: index,
-                  });
-                }}
-              >
-                <ListItem.Content>
-                  <ListItem.Title style={{ color: "#b3b3b3" }}>
-                    Zona {zone.zoneDetails.name}
-                  </ListItem.Title>
-                  <ListItem.Subtitle style={{ color: "#b3b3b3" }}>
-                    {zone.zoneDetails.waterAuto ? "ON" : "OFF"}
-                    {" - "}
-                    {zone.zoneDetails.waterQ} %
-                  </ListItem.Subtitle>
-                </ListItem.Content>
-                <ListItem.Chevron />
-              </ListItem>
-            );
-          })}
-        </ScrollView>
-      </SafeAreaView>
-    );
+      <ScrollView>
+        {zoneConfig.map((zone, index) => {
+          return (
+            <ListItem
+              key={index}
+              bottomDivider
+              containerStyle={{
+                backgroundColor: "#212121",
+              }}
+              onPress={() => {
+                props.navigation.navigate("ZoneDetails", {
+                  zoneNumber: index,
+                  // onGoBack: () => updateZoneConfig(useZones()),
+                });
+              }}
+            >
+              <ListItem.Content>
+                <ListItem.Title
+                  style={/* { color: "#b3b3b3" } */ styles.textSmall}
+                >
+                  Zona {zone.zoneDetails.name}
+                </ListItem.Title>
+                <ListItem.Subtitle
+                  style={/* { color: "#b3b3b3" } */ styles.textSmall}
+                >
+                  {zone.zoneDetails.waterAuto ? "ON" : "OFF"}
+                  {", "}
+                  {zone.zoneDetails.waterQ} %
+                </ListItem.Subtitle>
+              </ListItem.Content>
+              <ListItem.Chevron />
+            </ListItem>
+          );
+        })}
+      </ScrollView>
+    </SafeAreaView>
+  );
 };
 export default Zones;
