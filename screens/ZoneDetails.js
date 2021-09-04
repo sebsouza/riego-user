@@ -13,7 +13,14 @@ import {
 import firebase from "../database/Firebase";
 import { Input, Divider } from "react-native-elements";
 import Slider from "@react-native-community/slider";
-import { useUserId, useZones, useZonesUpdate } from "../context/UserContext";
+import { Icon } from "react-native-elements";
+import {
+  useUserId,
+  useZones,
+  useZonesUpdate,
+  useNotAnswering,
+  useNotAnsweringUpdate,
+} from "../context/UserContext";
 import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
 import theme from "../styles/theme.style.js";
@@ -23,6 +30,9 @@ const ZoneDetails = (props) => {
   const userId = useUserId();
   const getZones = useZonesUpdate();
   const zones = useZones();
+  const notAnswering = useNotAnswering();
+  const setNotAnswering = useNotAnsweringUpdate();
+
   const zoneNumber = props.route.params.zoneNumber; // 0...(n-1)
   const [zoneDetails, updateZoneDetails] = useState(
     zones[zoneNumber].zoneDetails
@@ -31,8 +41,10 @@ const ZoneDetails = (props) => {
   const [valveState, updateValveState] = useState({});
   // const [maxWaterTime, setMaxWaterTime] = useState("");
   // const [initializing, setInitializing] = useState(true);
-  const [saving, setSaving] = useState(false);
+  // const [saving, setSaving] = useState(false);
+  // const [notAnswering, setNotAnswering] = useState(false);
   const timer = useRef(null); // we can save timer in useRef and pass it to child
+  const timerNotAnswering = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -41,8 +53,9 @@ const ZoneDetails = (props) => {
         const handleAkg = (event) => {
           const akg = event.message;
           if (akg.cmd == "akgZoneConfig") {
+            setNotAnswering(false);
             getZones();
-            setSaving(false);
+            // setSaving(false);
             clearTimeout(timer.current);
             // alert(`Los cambios en la zona fueron aplicados correctamente.`);
             console.log("Zone changes applied");
@@ -62,13 +75,26 @@ const ZoneDetails = (props) => {
     }
   }, [pubnub]);
 
-  const handleChange = (name, value) => {
+  const handleChange = async (name, value) => {
     updateZoneDetails({ ...zoneDetails, [name]: value });
     // console.log(`zoneDetails.waterQ => ${zoneDetails.waterQ}`);
     // console.log(`zoneDetails.waterQMax => ${zoneDetails.waterQMax}`);
+    try {
+      await firebase.db
+        .collection("users/" + userId + "/zones")
+        .doc("zone" + (zoneNumber + 1))
+        .set({ ...zoneDetails, [name]: value })
+        .then(() => {
+          console.log("Zone Config successfully written!");
+          handleSave(3);
+        });
+    } catch (error) {
+      console.error("Error writing document: ", error);
+    }
   };
 
   const handleSave = (cmd) => {
+    setNotAnswering(false);
     const message = {
       from: "user",
       cmd: cmd,
@@ -76,17 +102,35 @@ const ZoneDetails = (props) => {
     pubnub.publish({ channel: "in-" + userId, message });
     console.log(message);
     console.log("Set Zone Config request sent");
+    clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       console.log(`ALERT! Saving timeout`);
-      alert(
-        "Sin respuesta del controlador. Los cambios serán aplicados cuando el equipo se reconecte a internet."
-      );
+      setNotAnswering(true);
+      timerNotAnswering.current = setTimeout(() => {
+        setNotAnswering(false);
+        clearTimeout(timerNotAnswering.current);
+      }, 4000);
+      // alert(
+      //   "Sin respuesta del controlador. Los cambios serán aplicados cuando el equipo se reconecte a internet."
+      // );
     }, 8000);
   };
 
-  const toggleSwitch = (name, value) => {
+  const toggleSwitch = async (name, value) => {
     updateZoneDetails({ ...zoneDetails, [name]: Boolean(value) });
     // console.log(zoneDetails);
+    try {
+      await firebase.db
+        .collection("users/" + userId + "/zones")
+        .doc("zone" + (zoneNumber + 1))
+        .set({ ...zoneDetails, [name]: Boolean(value) })
+        .then(() => {
+          console.log("Zone Config successfully written!");
+          handleSave(3);
+        });
+    } catch (error) {
+      console.error("Error writing document: ", error);
+    }
   };
 
   const toggleSwitchValveState = async (value) => {
@@ -115,21 +159,21 @@ const ZoneDetails = (props) => {
     }
   };
 
-  const saveConfig = async () => {
-    setSaving(true);
-    try {
-      await firebase.db
-        .collection("users/" + userId + "/zones")
-        .doc("zone" + (zoneNumber + 1))
-        .set(zoneDetails)
-        .then(() => {
-          console.log("Zone Config successfully written!");
-          handleSave(3);
-        });
-    } catch (error) {
-      console.error("Error writing document: ", error);
-    }
-  };
+  // const saveConfig = async () => {
+  //   setSaving(true);
+  //   try {
+  //     await firebase.db
+  //       .collection("users/" + userId + "/zones")
+  //       .doc("zone" + (zoneNumber + 1))
+  //       .set(zoneDetails)
+  //       .then(() => {
+  //         console.log("Zone Config successfully written!");
+  //         handleSave(3);
+  //       });
+  //   } catch (error) {
+  //     console.error("Error writing document: ", error);
+  //   }
+  // };
 
   // useEffect(() => {
   //   setTimeout(() => {
@@ -191,94 +235,103 @@ const ZoneDetails = (props) => {
   //     </View>
   //   );
   // else
-  if (saving)
-    return (
-      <View style={styles.containerLoading}>
-        <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
-        <StatusBar style="light" />
-      </View>
-    );
-  else
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar style="light" />
-        <ScrollView>
-          <View style={styles.text}>
-            <Text style={styles.textSmall}>Nombre: </Text>
-            <Input
-              value={zoneDetails.name}
-              style={styles.textLarge}
-              onChangeText={(value) => handleChange("name", String(value))}
-            />
-          </View>
-          <View style={styles.switch}>
-            <Text style={styles.textSmall}>Riego Automático: </Text>
-            <Switch
-              trackColor={{ false: "#535353", true: "#5356E6" }}
-              thumbColor={
-                zoneDetails.waterAuto ? theme.PRIMARY_COLOR : "#b3b3b3"
-              }
-              ios_backgroundColor="#3e3e3e"
-              onValueChange={(value) => toggleSwitch("waterAuto", value)}
-              value={zoneDetails.waterAuto}
-            />
-          </View>
-          <View style={styles.slider}>
-            <Text style={styles.textSmall}>
-              Humedad: {zoneDetails.waterQ} %
-            </Text>
-            <Slider
-              style={styles.slider}
-              value={zoneDetails.waterQ}
-              onValueChange={(value) => handleChange("waterQ", Number(value))}
-              maximumValue={100}
-              minimumValue={0}
-              step={5}
-              minimumTrackTintColor="#FFFFFF"
-              maximumTrackTintColor="#000000"
-              thumbTintColor={theme.PRIMARY_COLOR}
-            />
-          </View>
-          <View style={styles.slider}>
-            <Text style={styles.textSmall}>
-              Tiempo de Riego Máximo: {zoneDetails.waterQMax} min
-            </Text>
-            <Slider
-              style={styles.slider}
-              value={zoneDetails.waterQMax}
-              onValueChange={(value) =>
-                handleChange("waterQMax", Number(value))
-              }
-              maximumValue={60}
-              minimumValue={0}
-              step={5}
-              minimumTrackTintColor="#FFFFFF"
-              maximumTrackTintColor="#000000"
-              thumbTintColor={theme.PRIMARY_COLOR}
-            />
-          </View>
-          <View style={styles.switch}>
-            <Text style={styles.textSmall}>Probar Zona: </Text>
-            <Switch
-              trackColor={{ false: "#767577", true: "#81b0ff" }}
-              thumbColor={
-                valveState["zone" + zoneNumber]
-                  ? theme.PRIMARY_COLOR
-                  : "#f4f3f4"
-              }
-              ios_backgroundColor="#3e3e3e"
-              onValueChange={(value) => toggleSwitchValveState(value)}
-              value={valveState["zone" + zoneNumber]}
-            />
-          </View>
-          <Divider style={{ padding: 10, backgroundColor: "#121212" }} />
-          <Button
-            title="Aplicar"
-            color={theme.PRIMARY_COLOR}
-            onPress={() => saveConfig()}
+  // if (saving)
+  //   return (
+  //     <View style={styles.containerLoading}>
+  //       <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
+  //       <StatusBar style="light" />
+  //     </View>
+  //   );
+  // else
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
+      <ScrollView>
+        <View style={styles.text}>
+          <Text style={styles.textSmall}>Nombre: </Text>
+          <Input
+            value={zoneDetails.name}
+            style={styles.textLarge}
+            onChangeText={(value) => handleChange("name", String(value))}
           />
-        </ScrollView>
-      </SafeAreaView>
-    );
+        </View>
+        <View style={styles.switch}>
+          <Text style={styles.textSmall}>Riego Automático: </Text>
+          <Switch
+            trackColor={{ false: "#535353", true: theme.SECONDARY_COLOR }}
+            thumbColor={
+              zoneDetails.waterAuto
+                ? theme.PRIMARY_COLOR
+                : theme.SECONDARY_TEXT_COLOR
+            }
+            ios_backgroundColor="#3e3e3e"
+            onValueChange={(value) => toggleSwitch("waterAuto", value)}
+            value={zoneDetails.waterAuto}
+          />
+        </View>
+        <View style={styles.slider}>
+          <Text style={styles.textSmall}>Humedad: {zoneDetails.waterQ} %</Text>
+          <Slider
+            style={styles.slider}
+            value={zoneDetails.waterQ}
+            onValueChange={(value) => handleChange("waterQ", Number(value))}
+            maximumValue={100}
+            minimumValue={0}
+            step={5}
+            minimumTrackTintColor={theme.SECONDARY_COLOR}
+            maximumTrackTintColor="#535353"
+            thumbTintColor={theme.PRIMARY_COLOR}
+          />
+        </View>
+        <View style={styles.slider}>
+          <Text style={styles.textSmall}>
+            Tiempo de Riego Máximo: {zoneDetails.waterQMax} min
+          </Text>
+          <Slider
+            style={styles.slider}
+            value={zoneDetails.waterQMax}
+            onValueChange={(value) => handleChange("waterQMax", Number(value))}
+            maximumValue={60}
+            minimumValue={0}
+            step={5}
+            minimumTrackTintColor={theme.SECONDARY_COLOR}
+            maximumTrackTintColor="#535353"
+            thumbTintColor={theme.PRIMARY_COLOR}
+          />
+        </View>
+        <View style={styles.switch}>
+          <Text style={styles.textSmall}>Probar Zona: </Text>
+          <Switch
+            trackColor={{ false: "#767577", true: theme.SECONDARY_COLOR }}
+            thumbColor={
+              valveState["zone" + zoneNumber]
+                ? theme.PRIMARY_COLOR
+                : theme.SECONDARY_TEXT_COLOR
+            }
+            ios_backgroundColor="#3e3e3e"
+            onValueChange={(value) => toggleSwitchValveState(value)}
+            value={valveState["zone" + zoneNumber]}
+          />
+        </View>
+        {/* <Divider style={{ padding: 10, backgroundColor: "#121212" }} />
+        <Button
+          title="Aplicar"
+          color={theme.PRIMARY_COLOR}
+          onPress={() => saveConfig()}
+        /> */}
+      </ScrollView>
+      {notAnswering && (
+        <View style={styles.footer}>
+          <Text style={styles.textLarge}>Sin Respuesta</Text>
+          <Icon
+            name="warning"
+            color={theme.TERTIARY_COLOR}
+            size={18}
+            type="entypo"
+          />
+        </View>
+      )}
+    </SafeAreaView>
+  );
 };
 export default ZoneDetails;

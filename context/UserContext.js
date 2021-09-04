@@ -12,6 +12,8 @@ const ScheduleContext = React.createContext();
 const ScheduleUpdateContext = React.createContext();
 const MarkedDatesContext = React.createContext();
 const MarkedDatesUpdateContext = React.createContext();
+const NotAnsweringContext = React.createContext();
+const NotAnsweringUpdateContext = React.createContext();
 
 export function useUserId() {
   return useContext(UserContext);
@@ -52,14 +54,23 @@ export function useMarkedDates() {
 export function useMarkedDatesUpdate() {
   return useContext(MarkedDatesUpdateContext);
 }
+
+export function useNotAnswering() {
+  return useContext(NotAnsweringContext);
+}
+
+export function useNotAnsweringUpdate() {
+  return useContext(NotAnsweringUpdateContext);
+}
+
 export function UserProvider({ children }) {
   const [userId, setUserId] = useState("");
   const [zones, setZones] = useState([]);
   const [systemConfig, setSystemConfig] = useState({});
   const [schedule, setSchedule] = useState({});
-
-  // const initialDate = formatDate(new Date());
   const [markedDates, setMarkedDates] = useState({});
+  const [notAnswering, setNotAnswering] = useState(false);
+  // const timerNotAnswering = useRef(null);
 
   function getUserId() {
     const _userId = firebase.auth.currentUser.uid;
@@ -128,7 +139,7 @@ export function UserProvider({ children }) {
       .collection("users/" + firebase.auth.currentUser.uid + "/measures")
       .where("state", "==", 1)
       .orderBy("timestamp", "desc")
-      .limit(5)
+      .limit(100)
       .onSnapshot((querySnapshot) => {
         querySnapshot.forEach((doc) => {
           const waterAutoState = doc.data();
@@ -136,16 +147,25 @@ export function UserProvider({ children }) {
             Math.floor(waterAutoState.timestamp / 60) * 60 * 1000
           );
           const waterAutoFormatDate = formatDate(waterAutoDate);
-          console.log(waterAutoFormatDate);
+          // console.log(waterAutoState.duration);
 
           _markedDates[waterAutoFormatDate] = {
             marked: true,
             dotColor: theme.PRIMARY_COLOR,
+            soilMoistInit: waterAutoState.soilMoistInit,
+            duration: waterAutoState.duration,
           };
         });
         setMarkedDates(_markedDates);
         console.log("getMarkedDates");
       });
+
+    // function getNotAnswering(){
+    //   timerNotAnswering.current = setTimeout(() => {
+    //     setNotAnswering(false);
+    //     clearTimeout(timerNotAnswering.current);
+    //   }, 4000);
+    // }
   }
 
   return (
@@ -159,7 +179,13 @@ export function UserProvider({ children }) {
                   <ScheduleUpdateContext.Provider value={getSchedule}>
                     <MarkedDatesContext.Provider value={markedDates}>
                       <MarkedDatesUpdateContext.Provider value={getMarkedDates}>
-                        {children}
+                        <NotAnsweringContext.Provider value={notAnswering}>
+                          <NotAnsweringUpdateContext.Provider
+                            value={setNotAnswering}
+                          >
+                            {children}
+                          </NotAnsweringUpdateContext.Provider>
+                        </NotAnsweringContext.Provider>
                       </MarkedDatesUpdateContext.Provider>
                     </MarkedDatesContext.Provider>
                   </ScheduleUpdateContext.Provider>

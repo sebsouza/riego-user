@@ -6,12 +6,19 @@ import {
   ScrollView,
   SafeAreaView,
   ActivityIndicator,
+  Text,
 } from "react-native";
-import firebase from "../database/Firebase";
+// import firebase from "../database/Firebase";
 import { ListItem } from "react-native-elements";
-import { useUserId, useZones, useZonesUpdate } from "../context/UserContext";
+import { Icon } from "react-native-elements";
+import {
+  useZones,
+  useNotAnswering,
+  useNotAnsweringUpdate,
+} from "../context/UserContext";
 // import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
+import theme from "../styles/theme.style.js";
 import { useFocusEffect } from "@react-navigation/native";
 
 const Zones = (props) => {
@@ -20,6 +27,8 @@ const Zones = (props) => {
   // const [initializing, setInitializing] = useState(true);
   // const getZones = useZonesUpdate();
   const zones = useZones();
+  const notAnswering = useNotAnswering();
+
   const [zoneConfig, setZoneConfig] = useState(zones);
 
   useFocusEffect(
@@ -134,7 +143,7 @@ const Zones = (props) => {
                 <ListItem.Subtitle
                   style={/* { color: "#b3b3b3" } */ styles.textSmall}
                 >
-                  {zone.zoneDetails.waterAuto ? "ON" : "OFF"}
+                  {zone.zoneDetails.waterAuto ? "On" : "Off"}
                   {", "}
                   {zone.zoneDetails.waterQ} %
                 </ListItem.Subtitle>
@@ -144,6 +153,17 @@ const Zones = (props) => {
           );
         })}
       </ScrollView>
+      {notAnswering && (
+        <View style={styles.footer}>
+          <Text style={styles.textLarge}>Sin Respuesta</Text>
+          <Icon
+            name="warning"
+            color={theme.TERTIARY_COLOR}
+            size={18}
+            type="entypo"
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 };

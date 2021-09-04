@@ -9,7 +9,12 @@ import {
   RefreshControl,
 } from "react-native";
 import { Icon } from "react-native-elements";
-import { useUserId, useZones } from "../context/UserContext";
+import {
+  useUserId,
+  useZones,
+  useNotAnswering,
+  useNotAnsweringUpdate,
+} from "../context/UserContext";
 import { usePubNub } from "pubnub-react";
 import firebase from "../database/Firebase";
 import { styles } from "../styles";
@@ -28,6 +33,8 @@ const Dashboard = () => {
   const pubnub = usePubNub();
   const userId = useUserId();
   const zones = useZones();
+  const notAnswering = useNotAnswering();
+  const setNotAnswering = useNotAnsweringUpdate();
 
   const [currentWaterState, setCurrentWaterState] = useState({});
   const [lastAutoWater, setLastAutoWater] = useState({});
@@ -44,7 +51,7 @@ const Dashboard = () => {
   // const [online, setOnline] = useState(false);
   // const [clientStatus, setClientStatus] = useState("updating");
   const [connected, setConnected] = useState(false);
-  const [notAnswering, setNotAnswering] = useState(false);
+  // const [notAnswering, setNotAnswering] = useState(false);
   let date = new Date();
   const [dateTime, setDateTime] = useState(date.getTime());
   const timer = useRef(null); // we can save timer in useRef and pass it to child
@@ -234,9 +241,9 @@ const Dashboard = () => {
             );
             const startDate = startTime.getDate();
             const startMonth = startTime.getMonth();
-            console.log(`startMonth => ${startMonth}`);
+            // console.log(`startMonth => ${startMonth}`);
             var duration = 0;
-            console.log(`zones => ${zones}`);
+            // console.log(`zones => ${zones}`);
             zones.forEach((zone) => {
               // console.log(`water SP for ${zone.id} => ${zone.zoneDetails.waterCapacity}`);
               duration += waterLog.duration[zone.id] / 60.0;
@@ -271,57 +278,31 @@ const Dashboard = () => {
     };
   }, [zones]);
 
-  // useEffect(() => {
-  //   if (currentMeasure.soilMoisture != null && prevMeasure.soilMoisture != null)
-  //     setSoilMoistureDelta(
-  //       currentMeasure.soilMoisture - prevMeasure.soilMoisture
-  //     );
-  //   else setSoilMoistureDelta(0);
-  //   // console.log(`Soil Moisture Measure Delta => ${soilMoistureDelta}`);
-  //   // return () => {
-  //   //   cleanup;
-  //   // };
-  // }, [measures]);
-
-  // useEffect(() => {
-  //   if (currentWaterState.state != 0) {
-  //     var remaining = Math.ceil((lastAutoWater.endTime - dateTime) / 1000);
-  //     if (remaining < 0) remaining = 0;
-  //     // var remainingHr = Math.floor(remaining / 3600);
-  //     var remainingMin = Math.floor(remaining /* - remainingHr * 3600 */ / 60);
-  //     remainingMin = remainingMin < 10 ? "0" + remainingMin : remainingMin;
-  //     // var remainingSec = remaining - remainingHr * 3600 - remainingMin * 60;
-  //     // remainingSec = remainingSec < 10 ? "0" + remainingSec : remainingSec;
-
-  //     var duration = Math.ceil(
-  //       (lastAutoWater.endTime - lastAutoWater.startTime) / 1000
-  //     );
-  //     if (duration < 0) duration = 0;
-  //     // var durationHr = Math.floor(duration / 3600);
-  //     var durationMin = Math.floor(duration /* - durationHr * 3600 */ / 60);
-  //     durationMin = durationMin < 10 ? "0" + durationMin : durationMin;
-
-  //     setLastAutoWater({
-  //       ...lastAutoWater,
-  //       remainingMin: remainingMin,
-  //       durationMin: durationMin,
-  //     });
-  //   }
-  // }, [dateTime]);
+  useEffect(() => {
+    if (currentMeasure.soilMoisture != null && prevMeasure.soilMoisture != null)
+      setSoilMoistureDelta(
+        currentMeasure.soilMoisture - prevMeasure.soilMoisture
+      );
+    else setSoilMoistureDelta(0);
+    // console.log(`Soil Moisture Measure Delta => ${soilMoistureDelta}`);
+    // return () => {
+    //   cleanup;
+    // };
+  }, [measures]);
 
   useEffect(() => {
+    var i = 0;
+    var measures = [];
+    var _soilMoistInitMeasures = [];
+    var _currentMeasure = {};
+    var _prevMeasure = {};
     var measuresRef = firebase.db
       .collection("users/" + userId + "/measures")
       .orderBy("timestamp", "desc")
-      .limit(200)
+      .limit(100)
       .onSnapshot(
         (querySnapshot) => {
-          var i = 0;
-
-          var measures = [];
-          var soilMoistInitMeasures = [];
-          var _currentMeasure = {};
-          var _prevMeasure = {};
+          console.log(i);
           querySnapshot.forEach((childMeasure) => {
             var {
               estimatedTemperature,
@@ -390,7 +371,7 @@ const Dashboard = () => {
               soilMoistInit >= 0
                 ? (soilMoistInit = Number(soilMoistInit))
                 : (soilMoistInit = 0);
-              soilMoistInitMeasures.push({
+              _soilMoistInitMeasures.push({
                 timestamp: new Date(timestamp * 1000),
                 soilMoistInit: soilMoistInit,
               });
@@ -412,11 +393,6 @@ const Dashboard = () => {
             }
             i++;
           });
-          setPrevMeasure(_prevMeasure);
-          setCurrentMeasure(_currentMeasure);
-          updateMeasures(measures);
-          updateSoilMoistInitMeasures(soilMoistInitMeasures);
-          // console.log(soilMoistInitMeasures);
         },
         (error) => {
           // var errorCode = error.code;
@@ -424,6 +400,11 @@ const Dashboard = () => {
           alert(errorMessage);
         }
       );
+    setPrevMeasure(_prevMeasure);
+    setCurrentMeasure(_currentMeasure);
+    updateMeasures(measures);
+    updateSoilMoistInitMeasures(_soilMoistInitMeasures);
+    // console.log(_soilMoistInitMeasures);
     return () => {
       measuresRef();
     };

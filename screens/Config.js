@@ -12,7 +12,12 @@ import {
 } from "react-native";
 import firebase from "../database/Firebase";
 import { Divider, ListItem } from "react-native-elements";
-import { useUserId, useSystemConfig } from "../context/UserContext";
+import {
+  useUserId,
+  useSystemConfig,
+  useNotAnswering,
+  useNotAnsweringUpdate,
+} from "../context/UserContext";
 import { usePubNub } from "pubnub-react";
 import { styles } from "../styles";
 import theme from "../styles/theme.style";
@@ -20,11 +25,14 @@ import theme from "../styles/theme.style";
 const Config = (props) => {
   const pubnub = usePubNub();
   const userId = useUserId();
+  const notAnswering = useNotAnswering();
+  const setNotAnswering = useNotAnsweringUpdate();
   // const [initializing, setInitializing] = useState(true);
-  const [saving, setSaving] = useState(false);
+  // const [saving, setSaving] = useState(false);
   console.log(useSystemConfig());
   const [systemConfig, updateSystemConfig] = useState(useSystemConfig());
   const timer = useRef(null); // we can save timer in useRef and pass it to child
+  const timerNotAnswering = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -33,7 +41,8 @@ const Config = (props) => {
         const handleAkg = (event) => {
           const akg = event.message;
           if (akg.cmd == "akgSystemConfig") {
-            setSaving(false);
+            setNotAnswering(false);
+            // setSaving(false);
             clearTimeout(timer.current);
             console.log(`System Config Changes Applied.`);
             // alert(
@@ -44,21 +53,24 @@ const Config = (props) => {
             //   routes: [{ name: "Main" }],
             // });
           }
-          if (akg.cmd == "akgSaveAirValue") {
-            setSaving(false);
-            clearTimeout(timer.current);
-            alert("Valor de Humedad Mínimo configurado");
-          }
-          if (akg.cmd == "akgSaveWaterValue") {
-            setSaving(false);
-            clearTimeout(timer.current);
-            alert("Valor de Humedad Máximo configurado");
-          }
-          if (akg.cmd == "akgAirWaterReset") {
-            setSaving(false);
-            clearTimeout(timer.current);
-            alert("Valores de Humedad Mínimo y Máximo reseteados");
-          }
+          // if (akg.cmd == "akgSaveAirValue") {
+          //   setNotAnswering(false);
+          //   // setSaving(false);
+          //   clearTimeout(timer.current);
+          //   alert("Valor de Humedad Mínimo configurado");
+          // }
+          // if (akg.cmd == "akgSaveWaterValue") {
+          //   setNotAnswering(false);
+          //   // setSaving(false);
+          //   clearTimeout(timer.current);
+          //   alert("Valor de Humedad Máximo configurado");
+          // }
+          // if (akg.cmd == "akgAirWaterReset") {
+          //   setNotAnswering(false);
+          //   // setSaving(false);
+          //   clearTimeout(timer.current);
+          //   alert("Valores de Humedad Mínimo y Máximo reseteados");
+          // }
         };
         pubnub.addListener({ message: handleAkg });
         pubnub.subscribe({ channels: ["out-" + userId] });
@@ -87,6 +99,7 @@ const Config = (props) => {
   // }, []);
 
   const handleSave = (cmd) => {
+    setNotAnswering(false);
     const message = {
       from: "user",
       cmd: cmd,
@@ -94,12 +107,18 @@ const Config = (props) => {
     pubnub.publish({ channel: "in-" + userId, message });
     console.log(message);
     console.log("Set System Config request sent");
+    clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       console.log(`ALERT! Saving timeout`);
-      alert(
-        "Sin respuesta del controlador. Los cambios serán aplicados cuando el equipo se reconecte a internet."
-      );
-      setSaving(false);
+      setNotAnswering(true);
+      timerNotAnswering.current = setTimeout(() => {
+        setNotAnswering(false);
+        clearTimeout(timerNotAnswering.current);
+      }, 4000);
+      // alert(
+      //   "Sin respuesta del controlador. Los cambios serán aplicados cuando el equipo se reconecte a internet."
+      // );
+      // setSaving(false);
     }, 8000);
   };
 
@@ -107,17 +126,13 @@ const Config = (props) => {
   //   updateSystemConfig({ ...systemConfig, [name]: Number(value) });
   // };
 
-  const toggleSwitch = (name, value) => {
+  const toggleSwitch = async (name, value) => {
     updateSystemConfig({ ...systemConfig, [name]: Boolean(value) });
-  };
-
-  const saveConfig = async () => {
-    setSaving(true);
     try {
       await firebase.db
         .collection("users/" + userId + "/config")
         .doc("system")
-        .set(systemConfig)
+        .set({ ...systemConfig, [name]: Boolean(value) })
         .then(() => {
           console.log("System Config successfully written!");
         });
@@ -126,6 +141,22 @@ const Config = (props) => {
     }
     handleSave(1);
   };
+
+  // const saveConfig = async () => {
+  //   setSaving(true);
+  //   try {
+  //     await firebase.db
+  //       .collection("users/" + userId + "/config")
+  //       .doc("system")
+  //       .set(systemConfig)
+  //       .then(() => {
+  //         console.log("System Config successfully written!");
+  //       });
+  //   } catch (error) {
+  //     console.error("Error writing document: ", error);
+  //   }
+  //   handleSave(1);
+  // };
 
   const signOut = () => {
     console.log("signout");
@@ -163,89 +194,104 @@ const Config = (props) => {
   //     </View>
   //   );
   // else
-  if (saving)
-    return (
-      <View style={styles.containerLoading}>
-        <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
-        <StatusBar style="light" />
-      </View>
-    );
-  else
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar style="light" />
-        <ScrollView>
-          <View style={styles.switch}>
-            <View>
-              <Text style={styles.textSmall}>Riego Automático: </Text>
-            </View>
-            <View>
-              <Switch
-                trackColor={{ false: "#767577", true: "#81b0ff" }}
-                thumbColor={
-                  systemConfig.autoMode ? theme.PRIMARY_COLOR : "#f4f3f4"
-                }
-                ios_backgroundColor="#3e3e3e"
-                onValueChange={(value) => toggleSwitch("autoMode", value)}
-                value={systemConfig.autoMode}
-              />
-            </View>
+  // if (saving)
+  //   return (
+  //     <View style={styles.containerLoading}>
+  //       <ActivityIndicator size="large" color={theme.PRIMARY_COLOR} />
+  //       <StatusBar style="light" />
+  //     </View>
+  //   );
+  // else
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
+      <ScrollView>
+        <View style={styles.switch}>
+          <View>
+            <Text style={styles.textSmall}>Riego Automático: </Text>
           </View>
-          <View style={styles.switch}>
-            <View>
-              <Text style={styles.textSmall}>Sensor: </Text>
-            </View>
-            <View>
-              <Switch
-                trackColor={{ false: "#767577", true: "#81b0ff" }}
-                thumbColor={
-                  systemConfig.sensorMode ? theme.PRIMARY_COLOR : "#f4f3f4"
-                }
-                ios_backgroundColor="#3e3e3e"
-                onValueChange={(value) => toggleSwitch("sensorMode", value)}
-                value={systemConfig.sensorMode}
-              />
-            </View>
+          <View>
+            <Switch
+              trackColor={{ false: "#767577", true: theme.SECONDARY_COLOR }}
+              thumbColor={
+                systemConfig.autoMode
+                  ? theme.PRIMARY_COLOR
+                  : theme.SECONDARY_TEXT_COLOR
+              }
+              ios_backgroundColor="#3e3e3e"
+              onValueChange={(value) => toggleSwitch("autoMode", value)}
+              value={systemConfig.autoMode}
+            />
           </View>
-          <ListItem
-            containerStyle={{
-              backgroundColor: "#121212",
-              paddingLeft: -10,
-            }}
-            onPress={() => {
-              props.navigation.navigate(
-                "ConfigCalibrate" /* , {
+        </View>
+        <View style={styles.switch}>
+          <View>
+            <Text style={styles.textSmall}>Sensor: </Text>
+          </View>
+          <View>
+            <Switch
+              trackColor={{ false: "#767577", true: theme.SECONDARY_COLOR }}
+              thumbColor={
+                systemConfig.sensorMode
+                  ? theme.PRIMARY_COLOR
+                  : theme.SECONDARY_TEXT_COLOR
+              }
+              ios_backgroundColor="#3e3e3e"
+              onValueChange={(value) => toggleSwitch("sensorMode", value)}
+              value={systemConfig.sensorMode}
+            />
+          </View>
+        </View>
+        <ListItem
+          containerStyle={{
+            backgroundColor: "#121212",
+            paddingLeft: -10,
+          }}
+          onPress={() => {
+            props.navigation.navigate(
+              "ConfigCalibrate" /* , {
                 config: systemConfig,
               } */
-              );
-            }}
-          >
-            <ListItem.Content>
-              <ListItem.Title style={styles.textSmall}>
-                Calibración
-              </ListItem.Title>
-            </ListItem.Content>
-            <ListItem.Chevron />
-          </ListItem>
-          <Divider style={{ padding: 10, backgroundColor: "#121212" }} />
+            );
+          }}
+        >
+          <ListItem.Content>
+            <ListItem.Title style={styles.textSmall}>
+              Calibración
+            </ListItem.Title>
+          </ListItem.Content>
+          <ListItem.Chevron />
+        </ListItem>
+        {/* <Divider style={{ padding: 10, backgroundColor: "#121212" }} />
           <View>
             <Button
               title="Guardar cambios"
               color={theme.PRIMARY_COLOR}
               onPress={() => saveConfig()}
             />
-          </View>
-          <Divider style={{ padding: 10, backgroundColor: "#121212" }} />
-          <View>
-            <Button
-              title="Desconectar"
-              color={theme.TERTIARY_COLOR}
-              onPress={() => signOut()}
-            />
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
+          </View> */}
+        <Divider style={{ padding: 10, backgroundColor: "#121212" }} />
+        <View>
+          <Button
+            title="Desconectar"
+            color={theme.TERTIARY_COLOR}
+            onPress={() => signOut()}
+          />
+        </View>
+      </ScrollView>
+      {notAnswering && (
+        <View style={styles.footer}>
+          <Text style={styles.textLarge}>Sin Respuesta</Text>
+          <Icon
+            name="warning"
+            color={theme.TERTIARY_COLOR}
+            size={18}
+            type="entypo"
+          />
+        </View>
+      )}
+    </SafeAreaView>
+  );
 };
 
 export default Config;
